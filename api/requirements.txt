@@ -1,0 +1,9 @@
+wheel
+setuptools
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+mysqlclient==2.2.4
+DBUtils==3.0.3
+python-jose[cryptography]==3.3.0
+pydantic-settings==2.5.2
+requests==2.32.3
