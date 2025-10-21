@@ -11,8 +11,8 @@
 ## 2. Database Layer Issues
 
 ### Current Problems
-- [ ] Mixed connection handling - both `db/pool.py` and `db/connection.py` exist
-- [ ] No transaction management for complex operations
+- [ ] ~~Mixed connection handling - both `db/pool.py` and `db/connection.py` exist~~
+- [ ] ~~No transaction management for complex operations~~
 - [ ] SQL injection risk - while parameterized, could be improved with query builder
 
 ## 3. Security & Authentication

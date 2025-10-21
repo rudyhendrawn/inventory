@@ -289,7 +289,7 @@ cd /opt/inventory/api
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install fastapi uvicorn[standard] python-jose[cryptography] httpx pydantic-settings sqlalchemy alembic mysqlclient orjson
+pip install fastapi uvicorn[standard] python-jose[cryptography] httpx pydantic-settings mysqlclient orjson
 
 cat > app.py <<'PY'
 from fastapi import FastAPI
@@ -499,9 +499,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 │  └─ __init__.py
 │
 ├─ db/
-│  ├─ base.py                     # SQLAlchemy engine, SessionLocal, Base
 │  ├─ session.py                  # session generator for DI
-│  ├─ models/                     # SQLAlchemy models
+│  ├─ models/                     # SQL models
 │  │  ├─ user.py
 │  │  ├─ item.py                  # + owner_user_id FK (nullable)
 │  │  ├─ category.py
