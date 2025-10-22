@@ -1,7 +1,8 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from core.security.oidc import OIDCVerifier
-from db.pool import fetch_one, execute
+from domain.services.user_service import UserService
+# from db.pool import fetch_one, execute
 
 
 bearer = HTTPBearer(auto_error=False)
@@ -17,24 +18,34 @@ def get_current_user(credential: HTTPAuthorizationCredentials = Depends(bearer))
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid or missing token: {str(e)}")
     
     # Upsert user into DB
-    user = fetch_one(
-        "SELECT id, m365_oid, name, email, role, active FROM users WHERE m365oid = %s", (claims["oid"],),
-    )
-
-    if not user:
-        execute(
-            "INSERT INTO users (m365_oid, name, email, role, active) VALUES (%s, %s, %s, %s, %d)",
-            (claims["oid"], claims["name"], claims["email"], 'STAFF', 1),
-        )
-        user = fetch_one(
-            "SELECT id, m365_oid, name, email, role, active from users WHERE m365_oid = %s", (claims["oid"],),
+    try:
+        user_response = UserService.get_or_create_user(
+            m365_oid=claims["oid"],
+            name=claims["name", "unknown"],
+            email=claims["email", "unknown@example.com"]
         )
 
-    if not user or not user["active"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User inactive or not found")
+        if not user_response.active:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User inactive or not found")
 
-    return user
-    
+        result = {
+            "id": user_response.id,
+            "m365_oid": user_response.m365_oid,
+            "name": user_response.name,
+            "email": user_response.email,
+            "role": user_response.role,
+            "active": user_response.active
+        }
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve or create user: {str(e)}"
+        )
+
 def require_role(*roles):
     def checker(user=Depends(get_current_user)):
         if user["role"] not in roles:
