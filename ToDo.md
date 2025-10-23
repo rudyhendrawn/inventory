@@ -3,10 +3,10 @@
 ## 1. Code Architecture & Organization
 
 ### Missing Core Components
-- [ ] No Pydantic schemas for request/response validation in `schemas/`
-- [ ] Missing domain services - business logic is scattered in routers
-- [ ] No repository pattern - direct SQL queries in controllers
-- [ ] Incomplete error handling - minimal validation and error responses
+- [ ] ~~No Pydantic schemas for request/response validation in `schemas/`~~
+- [ ] ~~Missing domain services - business logic is scattered in routers~~
+- [ ] ~~No repository pattern - direct SQL queries in controllers~~
+- [ ] ~~Incomplete error handling - minimal validation and error responses~~
 
 ## 2. Database Layer Issues
 
@@ -19,7 +19,7 @@
 
 ### Current Issues
 - [ ] Hardcoded credentials in `.env` file
-- [ ] Missing input validation - direct dict usage in `app/routers/items.py`
+- [ ] ~~Missing input validation - direct dict usage in `app/routers/items.py`~~
 - [ ] No rate limiting or request size limits
 - [ ] CORS too permissive - allows all origins
 
@@ -68,13 +68,13 @@
 ## 10. Priority Implementation Order
 
 ### Immediate (Week 1)
-- [ ] Add Pydantic schemas for request/response validation
-- [ ] Fix security issues (remove `.env` from git, proper CORS)
-- [ ] Add basic error handling
+- [ ] ~~Add Pydantic schemas for request/response validation~~
+- [ ] ~~Fix security issues (remove `.env` from git, proper CORS)~~
+- [ ] ~~Add basic error handling~~
 
 ### Short-term (Week 2-3)
-- [ ] Implement repository pattern
-- [ ] Add domain services
+- [ ] ~~Implement repository pattern~~
+- [ ] ~~Add domain services~~
 - [ ] Set up proper testing framework
 
 ### Medium-term (Month 1)

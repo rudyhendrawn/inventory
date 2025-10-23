@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, Path
+from fastapi import APIRouter, Depends, Query, Path, HTTPException, status
 from app.dependencies import get_current_user, require_role
 from domain.services.user_service import UserService
 from schemas.users import UserCreate, UserUpdate, UserResponse, UserListResponse, UserRole
@@ -17,14 +17,22 @@ def list_users(
     """
     Retrieve a paginated list of users with optional filtering by active status and search term.
     """
-    response = UserService.get_all_users(
-        active_only=active_only == 1,
-        page=page,
-        page_size=page_size,
-        search=search
-    )
+    try:
+        response = UserService.get_all_users(
+            active_only=active_only == 1,
+            page=page,
+            page_size=page_size,
+            search=search
+        )
 
-    return response
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=str(e)
+        )
 
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(
@@ -34,9 +42,17 @@ def get_user(
     """
     Retrieve a single user by their ID.
     """
-    response = UserService.get_user_by_id(user_id)
+    try:
+        response = UserService.get_user_by_id(user_id)
 
-    return response
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=str(e)
+        )
 
 @router.post("/", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def create_user(
@@ -45,10 +61,17 @@ def create_user(
 ) -> UserResponse:
     """
     Create a new user.
-    """ 
-    
-    response = UserService.create_user(user_data)
-    return response
+    """
+    try:
+        response = UserService.create_user(user_data)
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 @router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def update_user(
@@ -59,9 +82,17 @@ def update_user(
     """
     Update an existing user.
     """
-    response = UserService.update_user(user_id, user_data)
+    try:
+        response = UserService.update_user(user_id, user_data)
 
-    return response
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 @router.delete("/{user_id}", dependencies=[Depends(require_role(UserRole.ADMIN))])
 def delete_user(
@@ -71,9 +102,17 @@ def delete_user(
     """
     Delete a user.
     """
-    UserService.delete_user(user_id)
+    try:
+        UserService.delete_user(user_id)
 
-    return None
+        return None
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 # @router.patch("/{user_id}/deactivate", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def activate_user(
@@ -84,9 +123,17 @@ def activate_user(
     """
     Activate or deactivate a user.
     """
-    response = UserService.activate_user(user_id=user_id, activate=activate)
+    try:
+        response = UserService.activate_user(user_id=user_id, activate=activate)
 
-    return response
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=str(e)
+        )
 
 @router.patch("/{user_id}/activate", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def deactivate_user(
@@ -97,6 +144,14 @@ def deactivate_user(
     """
     Deactivate a user.
     """
-    response = UserService.deactivate_user(user_id=user_id, deactivate=deactivate)
+    try:
+        response = UserService.deactivate_user(user_id=user_id, deactivate=deactivate)
 
-    return response
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=str(e)
+        )

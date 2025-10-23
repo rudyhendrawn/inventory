@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, validator
 from typing import Optional
 from enum import Enum
 from datetime import datetime
@@ -16,6 +16,12 @@ class User(BaseModel):
 
 class UserCreate(User):
     m365_oid: str = Field(..., min_length=1, max_length=255, description="The Microsoft 365 Object ID of the user")
+
+    @validator('m365_oid')
+    def validate_m365_oid(cls, v):
+        if not v.strip():
+            raise ValueError('m365_oid must not be empty or whitespace')
+        return v.strip()
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=120)

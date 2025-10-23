@@ -1,15 +1,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, users_route, items_route
-from db.pool import init_pool, close_pool
-import uvicorn
 from contextlib import asynccontextmanager
+from app.routers import auth, users_route, items_route
+from app.middleware import LoggingMiddleware, AuthContextMiddleware
+from db.pool import init_pool, close_pool
+from core.logging import configure_logging
+from core.config import settings
+import uvicorn
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: Configure logging
+    configure_logging()
+
     # Startup: Initialize DB pool
     init_pool()
     yield
+
     # Shutdown: Close DB pool
     close_pool()
 
@@ -18,11 +26,15 @@ app = FastAPI(title="Inventory API", version="1.0.0", lifespan=lifespan)
 # Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["*"],
 )
+
+# CORS middleware (restrict to LAN only)
+app.middleware("http")(LoggingMiddleware)
+app.middleware("http")(AuthContextMiddleware)
 
 app.include_router(auth.router)
 app.include_router(users_route.router)
