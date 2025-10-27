@@ -1,9 +1,11 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, Path, HTTPException, status
-from app.dependencies import get_current_user, require_role
+from core.logging import get_logger
 from domain.services.user_service import UserService
+from app.dependencies import get_current_user, require_role
+from fastapi import APIRouter, Depends, Query, Path, HTTPException, status
 from schemas.users import UserCreate, UserUpdate, UserResponse, UserListResponse, UserRole
 
+logger = get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("/", response_model=UserListResponse)
@@ -18,6 +20,18 @@ def list_users(
     Retrieve a paginated list of users with optional filtering by active status and search term.
     """
     try:
+        # Log the action with user context
+        logger.info(
+            "User list requested",
+            extra={
+                "requested_by": current_user['id'],
+                "requestor_email": current_user['email'],
+                "search_term": search,
+                "page": page,
+                "page_size": page_size
+            }
+        )
+
         response = UserService.get_all_users(
             active_only=active_only == 1,
             page=page,
@@ -37,12 +51,20 @@ def list_users(
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(
     user_id: int = Path(..., description="The ID of the user to retrieve"),
-    current_user=Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ) -> UserResponse:
     """
     Retrieve a single user by their ID.
     """
     try:
+        logger.info(
+            "User details requested",
+            extra={
+                "requested_by": current_user['id'],
+                "requestor_email": current_user['email'],
+                "target_user_id": user_id
+            }
+        )
         response = UserService.get_user_by_id(user_id)
 
         return response
@@ -63,6 +85,15 @@ def create_user(
     Create a new user.
     """
     try:
+        logger.info(
+            "User details requested",
+            extra={
+                "requested_by": current_user['id'],
+                "requestor_email": current_user['email'],
+                "new_user_email": user_data.email,
+                "new_user_role": user_data.role
+            }
+        )
         response = UserService.create_user(user_data)
         return response
     except HTTPException:
@@ -83,7 +114,23 @@ def update_user(
     Update an existing user.
     """
     try:
+        logger.info(
+            "User details requested",
+            extra={
+                "requested_by": current_user['id'],
+                "requestor_email": current_user['email'],
+                "target_fields": list(user_data.dict(exclude_unset=True).keys()),
+            }
+        )
         response = UserService.update_user(user_id, user_data)
+
+        logger.info(
+            "User update successfully",
+            extra={
+                "updated_by": current_user['id'],
+                "target_user_id": user_id
+            }
+        )
 
         return response
     except HTTPException:
@@ -103,7 +150,30 @@ def delete_user(
     Delete a user.
     """
     try:
+        logger.info(
+            "User deletion requested",
+            extra={
+                "deleted_by": current_user['id'],
+                "target_user_id": user_id
+            }
+        )
+
+        # Prevent self-deletion
+        if user_id == current_user['id']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Users cannot delete their own account."
+            )
+        
         UserService.delete_user(user_id)
+
+        logger.info(
+            "User deleted successfully",
+            extra={
+                "deleted_by": current_user['id'],
+                "target_user_id": user_id
+            }
+        )
 
         return None
     except HTTPException:
