@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = Field(default="")
     APP_VERSION: str = Field(default="")
-    DEBUG: bool = Field(default=False)
+    DEBUG: bool = Field(default=True)
 
     # Database
     DB_HOST: str = Field(default="")

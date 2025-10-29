@@ -51,7 +51,7 @@ class LoggingMiddleware (BaseHTTPMiddleware):
             )
 
             # Add request ID to response headers for debugging
-            response.header["X-Request-ID"] = request_id
+            response.headers["X-Request-ID"] = request_id
 
             return response
         except Exception as e:

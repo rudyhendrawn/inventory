@@ -17,7 +17,7 @@ class User(BaseModel):
 class UserCreate(User):
     m365_oid: str = Field(..., min_length=1, max_length=255, description="The Microsoft 365 Object ID of the user")
 
-    @validator('m365_oid')
+    @validator('m365_oid')  # Deprecated, will be change in the future
     def validate_m365_oid(cls, v):
         if not v.strip():
             raise ValueError('m365_oid must not be empty or whitespace')
