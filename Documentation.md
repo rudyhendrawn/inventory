@@ -289,7 +289,7 @@ cd /opt/inventory/api
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install fastapi uvicorn[standard] python-jose[cryptography] httpx pydantic-settings sqlalchemy alembic mysqlclient orjson
+pip install fastapi uvicorn[standard] python-jose[cryptography] httpx pydantic-settings mysqlclient orjson
 
 cat > app.py <<'PY'
 from fastapi import FastAPI
@@ -468,10 +468,10 @@ def require_role(*roles):
 ---
 
 ## How to run the project in development mode
+
 ```
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-
 
 ### Directory Structure
 
@@ -499,9 +499,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 │  └─ __init__.py
 │
 ├─ db/
-│  ├─ base.py                     # SQLAlchemy engine, SessionLocal, Base
 │  ├─ session.py                  # session generator for DI
-│  ├─ models/                     # SQLAlchemy models
+│  ├─ models/                     # SQL models
 │  │  ├─ user.py
 │  │  ├─ item.py                  # + owner_user_id FK (nullable)
 │  │  ├─ category.py
@@ -554,8 +553,67 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ├─ alembic.ini
 ├─ pyproject.toml                 # or requirements.txt
 └─ README.md
-
 ```
 
 ---
 
+## Properly Configure Your API in Entra ID
+
+Follow these steps to expose your API correctly:
+
+### Step 1: Configure the API App Registration
+
+Go to Azure Portal → Entra ID → App registrations
+
+Find your API app (the one with ID 6d7e2d54-e45e-49f1-9f4e-919ce695a15b)
+
+Click on Expose an API
+
+Set the Application ID URI:
+
+- Click Add next to "Application ID URI"
+- Use: api://6d7e2d54-e45e-49f1-9f4e-919ce695a15b (should match your client ID)
+- Click Save
+
+Add a scope:
+
+- Click + Add a scope
+- Scope name: access_as_user
+- Who can consent: Admins and users
+- Admin consent display name: Access Inventory API
+- Admin consent description: Allows the app to access the Inventory API on behalf of the signed-in user
+- User consent display name: Access Inventory API
+- User consent description: Allows the app to access the Inventory API on your behalf
+- State: Enabled
+- Click Add scope
+
+### Step 2: Configure the Web App Registration
+
+Go to Azure Portal → Entra ID → App registrations
+
+Find your Web App (the one you're using for the front-end)
+
+Go to API permissions
+
+- Click + Add a permission
+- Select My APIs tab
+- Find your API app (6d7e2d54-e45e-49f1-9f4e-919ce695a15b)
+- Select Delegated permissions
+- Check access_as_user
+- Click Add permissions
+- Click Grant admin consent (if you're an admin)
+
+### Step 3: Update Authentication Settings
+
+In your Web App registration:
+
+Go to Authentication
+
+Under Platform configurations, add Single-page application:
+
+- Redirect URI: http://localhost:5173
+
+Under Implicit grant and hybrid flows, enable:
+
+- ✅ Access tokens
+- ✅ ID tokens
