@@ -1,6 +1,7 @@
 CREATE TABLE users (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  m365_oid VARCHAR(64) NOT NULL UNIQUE, -- Entra object id
+  username VARCHAR(50) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(120) NOT NULL,
   email VARCHAR(160) NOT NULL UNIQUE,
   role ENUM('ADMIN','STAFF','AUDITOR') NOT NULL DEFAULT 'STAFF',
@@ -107,3 +108,6 @@ CREATE TABLE audit_log (
   INDEX idx_audit_entity (entity_type, entity_id),
   CONSTRAINT fk_audit_user FOREIGN KEY (actor_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
+
+-- Add index for username lookups
+CREATE INDEX idx_users_username ON users(username);

@@ -225,3 +225,5 @@ def deactivate_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=str(e)
         )
+    
+# @router

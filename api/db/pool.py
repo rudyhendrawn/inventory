@@ -1,5 +1,8 @@
-import MySQLdb
-import MySQLdb.cursors
+# import MySQLdb
+# import MySQLdb.cursors
+import pymysql as MySQLdb
+# import pymysql.cursors
+
 import threading
 import queue
 from typing import Optional, Generator, Any
@@ -24,8 +27,8 @@ class ConnectionPool:
             host=settings.DB_HOST,
             port=settings.DB_PORT,
             user=settings.DB_USER,
-            passwd=settings.DB_PASSWORD,
-            db=settings.DB_NAME,
+            password=settings.DB_PASSWORD,
+            database=settings.DB_NAME,
             charset='utf8mb4',
             cursorclass=MySQLdb.cursors.DictCursor
         )
@@ -134,7 +137,7 @@ def get_db_cursor(dictionary: bool = True):
             _pool.return_connection(connection)
 
 @contextmanager
-def get_db_transaction() -> Generator[MySQLdb.Connection, None, None]:
+def get_db_transaction() -> Generator[Any, None, None]:
     """
     Context manager for database transaction.
     Provides direct connection access for multiple operations.
@@ -154,7 +157,7 @@ def get_db_transaction() -> Generator[MySQLdb.Connection, None, None]:
             _pool.return_connection(connection) # Return to pool
 
 @contextmanager
-def get_transaction_cursor(dictionary: bool = True) -> Generator[MySQLdb.cursors.BaseCursor, None, None]:
+def get_transaction_cursor(dictionary: bool = True) -> Generator[Any, None, None]:
     """
     Context manager for a cursor within a transaction.
     """
@@ -175,7 +178,7 @@ def fetch_all(sql: str, params: tuple = ()) -> list[dict]:
         cursor.execute(sql, params)
         results = cursor.fetchall()
         
-        return results
+        return list(results)
     
 def fetch_one(sql: str, params: tuple = ()) -> Optional[dict]:
     """Fetch a single row for a query."""

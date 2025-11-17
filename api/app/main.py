@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from app.routers import auth, users_route, units_route, test_auth
+from app.routers import auth, users_route, units_route, items_route, test_auth
 from app.middleware import LoggingMiddleware, AuthContextMiddleware
 from db.pool import init_pool, close_pool
 from core.logging import configure_logging
@@ -26,24 +26,21 @@ app = FastAPI(title="Inventory API", version="1.0.0", lifespan=lifespan)
 # Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        *settings.CORS_ORIGINS,
-        # "http://localhost:5173",
-        # "http://localhost:3000",
-    ],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["*"],
 )
 
 # CORS middleware (restrict to LAN only)
-app.middleware("http")(LoggingMiddleware)
-app.middleware("http")(AuthContextMiddleware)
+# app.middleware("http")(LoggingMiddleware)
+# app.middleware("http")(AuthContextMiddleware)
 
 app.include_router(auth.router)
 app.include_router(users_route.router)
 # app.include_router(items_route.router)
 app.include_router(units_route.router)
+app.include_router(items_route.router)
 
 if settings.DEBUG:
     app.include_router(test_auth.router)

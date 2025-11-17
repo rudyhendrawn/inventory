@@ -1,7 +1,11 @@
 from typing import Optional, List
 from fastapi import HTTPException, status
 from db.repositories.user_repo import UserRepository
-from schemas.users import UserCreate, UserUpdate, UserResponse, UserListResponse, UserRole
+from schemas.users import UserCreate, UserUpdate, UserResponse, UserListResponse, UserLogin, TokenResponse
+from core.security.password import hash_password, verify_password
+from core.security.jwt import create_access_token
+from datetime import timedelta
+from core.config import settings
 
 class UserService:
     
@@ -84,29 +88,82 @@ class UserService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to retrieve user: {str(e)}"
             )
+        
+    @staticmethod
+    def authenticate_user(login_date: UserLogin) -> TokenResponse:
+        """
+        Authenticate user and return JWT token.
+        """
+        try:
+            user_data = UserRepository.get_by_username(login_date.username)
+
+            if not user_data:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid username or password."
+                )
+            
+            if not verify_password(login_date.password, user_data['password_hash']):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid username or password."
+                )
+
+            if not user_data['active']:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User account is inactive."
+                )
+            
+            # Create JWT Access Token
+            access_token = create_access_token(
+                data={
+                    "sub": user_data['username'],
+                    "user_id": user_data['id'],
+                    "role": user_data['role']
+                },
+                expires_delta=timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+            )
+
+            token_response = TokenResponse(
+                access_token=access_token,
+                token_type="bearer",
+                expires_in=settings.JWT_EXPIRE_MINUTES * 60
+            )
+
+            return token_response
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to authenticate user: {str(e)}"
+            )
 
     @staticmethod
     def create_user(user_data: UserCreate) -> UserResponse:
         """
         Create a new user.
         """
-        # Check for existing user with same email or m365_oid
+        # Check for existing user with same username
+        existing_user_by_username = UserRepository.exists_by_username(user_data.username)
+        if existing_user_by_username:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User with username {user_data.username} already exists."
+            )
+
+        # Check for existing user with same email
         existing_user_by_email = UserRepository.exists_by_email(user_data.email)
         if existing_user_by_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"User with email {user_data.email} already exists."
             )
-
-        existing_user_by_oid = UserRepository.exists_by_oid(user_data.m365_oid)
-        if existing_user_by_oid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"User with m365_oid {user_data.m365_oid} already exists."
-            )
         
         try:
-            created_user = UserRepository.create(user_data)
+            password_hash = hash_password(user_data.password)
+            created_user = UserRepository.create(user_data=user_data, password_hash=password_hash)
             if not created_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -203,44 +260,38 @@ class UserService:
                 detail=f"Failed to retrieve user for deletion: {str(e)}"
             )
         
-    @staticmethod
-    def get_or_create_user(m365_oid: str, name: str, email: str) -> UserResponse:
-        """
-        Get a user by m365_oid or create if not exists.
-        """
-        try:
-            existing_user = UserRepository.get_by_oid(m365_oid)
+    # @staticmethod
+    # def get_or_create_user(m365_oid: str, name: str, email: str) -> UserResponse:
+    #     """
+    #     Get a user by email or create if not exists.
+    #     """
+    #     try:
+    #         existing_user = UserRepository.get_by_email(email)
 
-            if existing_user:
-                result = UserResponse(**existing_user)
-                return result
+    #         if existing_user:
+    #             result = UserResponse(**existing_user)
+    #             return result
             
-            # Auto-create user with STAFF role
-            user_data = UserCreate(
-                m365_oid=m365_oid,
-                name=name,
-                email=email,
-                role=UserRole.STAFF,
-                active=1
-            )
+    #         # Auto-create user with STAFF role
+    #         user_data = UserCreate(
+    #             username=name,
+    #             password="",
+    #             name=name,
+    #             email=email,
+    #             role=UserRole.STAFF,
+    #             active=1
+    #         )
             
-            created_user = UserRepository.create(user_data)
-            if not created_user:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create user."
-                )
-            
-            result = UserResponse(**created_user)
+    #         created_user = UserRepository.create(user_data, password_hash="")
 
-            return result
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to retrieve or create user: {str(e)}"
-            )
+    #         return UserResponse(**created_user)
+    #     except HTTPException:
+    #         raise
+    #     except Exception as e:
+    #         raise HTTPException(
+    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #             detail=f"Failed to retrieve or create user: {str(e)}"
+    #         )
         
     @staticmethod
     def activate_user(user_id: int, activate: int) -> bool:
