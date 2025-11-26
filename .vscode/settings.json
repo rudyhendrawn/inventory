@@ -1,4 +1,5 @@
 {
     "python.defaultInterpreterPath": "/Users/rudyhendrawan/Projects/inventory/api/.venv/bin",
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "python.analysis.typeCheckingMode": "standard"
 }
