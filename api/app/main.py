@@ -1,7 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from app.routers import auth, users_route, units_route, items_route, test_auth
+from app.routers import (
+    auth,
+    users_route,
+    units_route,
+    items_route,
+    category_route,
+    test_auth
+)
 from app.middleware import LoggingMiddleware, AuthContextMiddleware
 from db.pool import init_pool, close_pool
 from core.logging import configure_logging
@@ -41,6 +48,7 @@ app.include_router(users_route.router)
 # app.include_router(items_route.router)
 app.include_router(units_route.router)
 app.include_router(items_route.router)
+app.include_router(category_route.router)
 
 if settings.DEBUG:
     app.include_router(test_auth.router)

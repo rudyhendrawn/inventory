@@ -213,3 +213,20 @@ class UnitsRepository:
             return False
         except Exception as e:
             raise RuntimeError(f"Error checking existence of unit symbol '{symbol}': {e}")
+
+    @staticmethod
+    def exists_by_id(unit_id: int) -> bool:
+        try:
+            query = """
+                SELECT COUNT(1) as count
+                FROM units
+                WHERE id = %s
+                """
+            
+            result = fetch_one(query, (unit_id,))
+            if result is not None:
+                return result['count'] > 0
+            else:
+                return False
+        except Exception as e:
+            raise RuntimeError(f"Error checking if unit exists by ID: {str(e)}")
