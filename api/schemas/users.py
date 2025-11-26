@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import Optional
 from enum import Enum
 from datetime import datetime
@@ -15,23 +15,29 @@ class User(BaseModel):
     active: int = Field(default=1, description="Indicates if the user is active")
 
 class UserCreate(User):
-    m365_oid: str = Field(..., min_length=1, max_length=255, description="The Microsoft 365 Object ID of the user")
+    username: str = Field(..., min_length=3, max_length=50, description="The username for the user account")
+    password: str = Field(..., min_length=8, description="The password for the user account")
 
-    @validator('m365_oid')  # Deprecated, will be change in the future
-    def validate_m365_oid(cls, v):
+    @field_validator('username')
+    def validate_username(cls, v):
         if not v.strip():
-            raise ValueError('m365_oid must not be empty or whitespace')
+            raise ValueError('username must not be empty or whitespace')
         return v.strip()
+    
+class UserLogin(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50, description="The username for login")
+    password: str = Field(..., min_length=8, description="The password for login")
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=120)
     email: Optional[EmailStr] = None
     role: Optional[UserRole] = None
     active: Optional[int] = None
+    password: Optional[str] = Field(None, min_length=8)
 
 class UserResponse(User):
     id: int
-    m365_oid: str
+    username: str
     created_at: datetime
 
     class Config:
@@ -42,3 +48,8 @@ class UserListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = Field(default="bearer")
+    expires_in: int

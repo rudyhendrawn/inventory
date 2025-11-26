@@ -1,3 +1,4 @@
 {
-    "python.defaultInterpreterPath": "C:\\Python\\inventory\\api\\.venv\\Scripts\\Python.exe"
+    "python.defaultInterpreterPath": "/Users/rudyhendrawan/Projects/inventory/api/.venv/bin",
+    "python-envs.pythonProjects": []
 }

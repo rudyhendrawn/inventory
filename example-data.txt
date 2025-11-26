@@ -1,67 +1,49 @@
-# Test user creation
-curl -X POST "http://localhost:8000/test/register-user" \
+cd /Users/rudyhendrawan/Projects/inventory/api
+source .venv/bin/activate
+python -c "import bcrypt; print(bcrypt.hashpw('AdminPassword123!'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'))"
+# Copy the output hash and use it to inject to the database as the password for the admin user.
+# $2b$12$5NXL8ngtjCBP7mP.ouFfmeY4Qn/0e3lidEo9Dn9EV86veXo7Lz.Vy
+
+-- Connect to MySQL
+mysql -u inv -p@SgiInventory123 -D inventory
+
+-- Insert admin user
+INSERT INTO users (username, password_hash, name, email, role, active, created_at)
+VALUES (
+    'admin',
+    '$2b$12$5NXL8ngtjCBP7mP.ouFfmeY4Qn/0e3lidEo9Dn9EV86veXo7Lz.Vy',  -- Replace with your hash
+    'System Administrator',
+    'admin@example.com',
+    'ADMIN',
+    1,
+    NOW()
+);
+
+-- Verify the insert
+SELECT id, username, name, email, role, active FROM users WHERE username = 'admin';
+
+curl -X POST "http://localhost:8000/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
-    "m365_oid": "test-oid-123",
+    "username": "admin",
+    "password": "AdminPassword123!"
+  }'
+
+{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInVzZXJfaWQiOjIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTc2Mjg0NTUzOH0.CyaKcoo805d98_inEwWLDSq7gK8YGWXeEKllwrkjhYg","token_type":"bearer","expires_in":86400}%
+
+# Step 1: Login as admin
+TOKEN=$(curl -s -X POST "http://localhost:8000/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"AdminPassword123!"}' | jq -r '.access_token')
+
+curl -X POST "http://localhost:8000/users/" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "johndoe",
+    "password": "SecurePass123!",
     "name": "John Doe",
-    "email": "john.doe@example.com",
+    "email": "john.doe@sgi-aero.com",
     "role": "STAFF",
     "active": 1
   }'
-
-# Test auto-creation flow
-curl -X POST "http://localhost:8000/test/simulate-login?m365_oid=auto-oid-456&name=Jane%20Smith&email=jane@example.com"
-
-curl -X POST http://0.0.0.0:8000/users \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    -d '{
-    "m365_oid": "d47a3b28-fd4a-42d9-bb4a-98dc87ab5d2e",
-    "name": "Rudy Hendrawan",
-    "email": "rudy.hendrawan@sgi.local",
-    "role": "ADMIN",
-    "active": 1
-}'
-
-
-curl -X POST http://0.0.0.0:8000/users \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    -d '{
-    "m365_oid": "e12c4ac1-0e6b-48ad-9aa5-c2b57f93399a",
-    "name": "Dewi Ari Jayanti",
-    "email": "dewi.jayanti@sgi.local",
-    "role": "STAFF",
-    "active": 1
-}'
-
-
-curl -X POST http://0.0.0.0:8000/users \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    -d '{
-    "m365_oid": "c20877f3-8173-4a59-83a4-6bb7f908e27f",
-    "name": "Made Wirawan",
-    "email": "made.wirawan@sgi.local",
-    "role": "AUDITOR",
-    "active": 1
-}'
-
-curl -X POST http://0.0.0.0:8000/units \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    -d '{
-    "name": "Piece",
-    "symbol": "pcs",
-    "multiplier": 1.0
-}'
-
-
-curl -X POST http://0.0.0.0:8000/units \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    -d '{
-    "name": "Kilogram",
-    "symbol": "kg",
-    "multiplier": 1.0
-}'

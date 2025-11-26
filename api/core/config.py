@@ -16,20 +16,16 @@ class Settings(BaseSettings):
     DB_POOL_MIN: int = Field(default=5)
     DB_POOL_MAX: int = Field(default=20)
 
-    # Azure AD / OIDC
-    OIDC: str = Field(default="")
-    OIDC_APP_ID: str = Field(default="")
-    OIDC_CLIENT_SECRET_ID: str = Field(default="")
-    OIDC_CLIENT_SECRET: str = Field(default="")
-    OIDC_TENANT_ID: str = Field(default="")
-    OIDC_AUDIENCE: str = Field(default="")
-    OIDC_ISSUER: str = Field(default="")
-    OIDC_JWKS_URL: str = Field(default="")
+    # JWT Authentication
+    JWT_SECRET_KEY: str = Field(default="")
+    JWT_ALGORITHM: str = Field(default="HS256")
+    JWT_EXPIRE_MINUTES: int = Field(default=1440)  # 1 day
 
+    # CORS
     CORS_ORIGINS: list[str] = Field(default_factory=list)
 
     # File Upload
-    UPLOAD_DIR: str = Field(default="")
+    UPLOAD_DIR: str = Field(default="./uploads")
     MAX_UPLOAD_SIZE: int = Field(default=0)
 
     # Logging
