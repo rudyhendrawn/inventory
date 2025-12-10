@@ -254,6 +254,33 @@ class UserRepository:
             raise RuntimeError(f"Error deleting user: {str(e)}")
 
     @staticmethod
+    def exists_by_id(user_id: int, exclude_id: Optional[int] = None) -> bool:
+        """
+        Check if a user exists by ID
+        """
+        try:
+            if not isinstance(user_id, int) or user_id <= 0:
+                return False
+            
+            if exclude_id:
+                result = fetch_one(
+                    "SELECT COUNT(*) as count FROM users WHERE id = %s AND id != %s",
+                    (user_id, exclude_id)
+                )
+            else:
+                result = fetch_one(
+                    "SELECT COUNT(*) as count FROM users WHERE id = %s",
+                    (user_id,)
+                )
+            
+            if result and result['count'] > 0:
+                return True
+            
+            return False
+        except Exception as e:
+            raise RuntimeError(f"Error checking user existence by ID: {str(e)}")
+
+    @staticmethod
     def exists_by_username(username: str, exclude_id: Optional[int] = None) -> bool:
         """
         Check if a user exists by username

@@ -21,6 +21,7 @@ def list_categories(
         page_size=page_size,
         search=search
     )
+
     return categories_data
 
 @router.get("/{category_id}", response_model=Category)
@@ -29,6 +30,7 @@ def get_category(
     current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
 ) -> Category:
     category_data = CategoryService.get_category_by_id(category_id)
+   
     return category_data
 
 @router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))])
@@ -39,6 +41,7 @@ def create_category(
     try:
         logger.info(f"Category creation requested by {current_user}: {category_data.name}")
         response = CategoryService.create_category(category_data)
+       
         return response
     except HTTPException:
         raise
@@ -55,6 +58,7 @@ def update_category(
     try:
         logger.info(f"Category update requested by {current_user}: {category_id}")
         response = CategoryService.update_category(category_id, category_data)
+        
         return response
     except HTTPException:
         raise

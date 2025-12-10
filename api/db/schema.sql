@@ -81,6 +81,7 @@ CREATE TABLE issues (
   approved_by BIGINT,
   issued_at DATETIME,
   note VARCHAR(255),
+  updated_at DATETIME,
   CONSTRAINT fk_issue_req FOREIGN KEY (requested_by) REFERENCES users(id),
   CONSTRAINT fk_issue_app FOREIGN KEY (approved_by) REFERENCES users(id)
 ) ENGINE=InnoDB;

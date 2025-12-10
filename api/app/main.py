@@ -7,6 +7,7 @@ from app.routers import (
     units_route,
     items_route,
     category_route,
+    issue_route,
     test_auth
 )
 from app.middleware import LoggingMiddleware, AuthContextMiddleware
@@ -49,6 +50,7 @@ app.include_router(users_route.router)
 app.include_router(units_route.router)
 app.include_router(items_route.router)
 app.include_router(category_route.router)
+app.include_router(issue_route.router)
 
 if settings.DEBUG:
     app.include_router(test_auth.router)
