@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional
 from fastapi import HTTPException, status
 from db.repositories.item_repo import ItemRepository
 from db.repositories.category_repo import CategoryRepository

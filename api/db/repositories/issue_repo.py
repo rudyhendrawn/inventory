@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Any
 from db.pool import fetch_all, fetch_one, execute
 from schemas.issues import IssueCreate, IssueUpdate, IssueResponse, IssueListResponse
+from datetime import datetime, timezone
 
 class IssueRepository:
     @staticmethod
@@ -35,7 +36,7 @@ class IssueRepository:
 
             return fetch_all(query, tuple(params))
         except Exception as e:
-            raise RuntimeError(f"Error fetching all issues: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def get_by_id(issue_id: int) -> Optional[Dict[str, Any]]:
@@ -53,7 +54,7 @@ class IssueRepository:
                 """
             return fetch_one(query, (issue_id,))
         except Exception as e:
-            raise RuntimeError(f"Error fetching issue by ID: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def get_by_code(issue_code: str) -> Optional[Dict[str, Any]]:
@@ -71,7 +72,7 @@ class IssueRepository:
                 """
             return fetch_one(query, (issue_code,))
         except Exception as e:
-            raise RuntimeError(f"Error fetching issue by code: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def create(issue_data: IssueCreate) -> Optional[Dict[str, Any]]:
@@ -102,7 +103,7 @@ class IssueRepository:
             
             return data
         except Exception as e:
-            raise RuntimeError(f"Error creating issue: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def update(issue_id: int, issue_data: IssueUpdate) -> Optional[Dict[str, Any]]:
@@ -131,7 +132,8 @@ class IssueRepository:
             if issue_data.note is not None:
                 set_clauses.append("note = %s")
                 params.append(issue_data.note)
-            set_clauses.append("updated_at = NOW()")
+            set_clauses.append("updated_at = %s")
+            params.append(datetime.now(timezone.utc))
                         
             if not set_clauses:
                 raise ValueError("No fields to update")
@@ -151,7 +153,7 @@ class IssueRepository:
             else:
                 return None
         except Exception as e:
-            raise RuntimeError(f"Error updating issue with id {issue_id}: {str(e)}")
+            raise RuntimeError({str(e)})
             
     @staticmethod
     def delete(issue_id: int) -> bool:
@@ -167,7 +169,7 @@ class IssueRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError(f"Error deleting issue {issue_id}: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def exists_by_id(issue_id: int) -> bool:
@@ -180,7 +182,7 @@ class IssueRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError(f"Error checking if issue exists by ID: {str(e)}")
+            raise RuntimeError({str(e)})
     
     @staticmethod
     def count() -> int:
@@ -196,7 +198,7 @@ class IssueRepository:
             else:
                 return 0
         except Exception as e:
-            raise RuntimeError(f"Error counting issues: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def count_status(issue_status : str) -> int:
@@ -222,7 +224,7 @@ class IssueRepository:
             else:
                 return 0
         except Exception as e:
-            raise RuntimeError(f"Error counting issues by status: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def exists_by_code(issue_code: str) -> bool:
@@ -235,7 +237,7 @@ class IssueRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError(f"Error checking if issue exists by code: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def approve_issue(issue_id: int, approver_id: int) -> Optional[Dict[str, Any]]:
@@ -259,7 +261,7 @@ class IssueRepository:
             else:
                 return None
         except Exception as e:
-            raise RuntimeError(f"Error approving issue with id {issue_id}: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def change_status(issue_id: int, new_status: str) -> Optional[Dict[str, Any]]:
@@ -283,4 +285,4 @@ class IssueRepository:
             else:
                 return None
         except Exception as e:
-            raise RuntimeError(f"Error changing status of issue with id {issue_id}: {str(e)}")
+            raise RuntimeError({str(e)})

@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional
 from fastapi import HTTPException, status
 from db.repositories.user_repo import UserRepository
 from schemas.users import UserCreate, UserUpdate, UserResponse, UserListResponse, UserLogin, TokenResponse

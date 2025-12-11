@@ -16,22 +16,80 @@ def list_categories(
     search: Optional[str] = Query(None, description="Search term for category name"),
     current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
 ) -> list[Category]:
-    categories_data = CategoryService.get_all_categories(
-        page=page,
-        page_size=page_size,
-        search=search
-    )
+    try:
+        logger.info(
+            "Category list requested",
+            extra={
+                "requested_by": current_user,
+                "search": search,
+                "page": page,
+                "page_size": page_size
+            }
+        )
 
-    return categories_data
+        categories_data = CategoryService.get_all_categories(
+            page=page,
+            page_size=page_size,
+            search=search
+        )
+
+        logger.info(
+            "Category list retrieved",
+            extra={
+                "requested_by": current_user,
+                "category_count": len(categories_data)
+            }
+        )
+
+        return categories_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error in list_categories. ", 
+            extra={"error": str(e), 
+                   "requested_by": current_user
+            }
+        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
 @router.get("/{category_id}", response_model=Category)
 def get_category(
     category_id: int = Path(..., gt=0, description="The ID of the category to retrieve"),
     current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
 ) -> Category:
-    category_data = CategoryService.get_category_by_id(category_id)
-   
-    return category_data
+    try:
+        logger.info(
+            "Category detail requested",
+            extra={
+                "requested_by": current_user,
+                "category_id": category_id
+            }
+        )
+        
+        category_data = CategoryService.get_category_by_id(category_id)
+
+        logger.info(
+            "Category detail retrieved",
+            extra={
+                "requested_by": current_user,
+                "category_id": category_id
+            }
+        )
+    
+        return category_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error in get_category. ",
+            extra={
+                "error": str(e),
+                "requested_by": current_user,
+                "category_id": category_id
+            }
+        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
 @router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))])
 def create_category(
@@ -39,14 +97,35 @@ def create_category(
     current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
 ) -> Category:
     try:
-        logger.info(f"Category creation requested by {current_user}: {category_data.name}")
+        logger.info(
+            "Category creation requested",
+            extra={
+                "requested_by": current_user,
+                "category_name": category_data.name
+            }
+        )
         response = CategoryService.create_category(category_data)
        
+        logger.info(
+            "Category created successfully",
+            extra={
+                "requested_by": current_user,
+                "category_id": response.id,
+                "category_name": response.name
+            }
+        )
+
         return response
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating category: {str(e)}")
+        logger.error(
+            "Error creating category.",
+            extra={
+                "error": str(e),
+                "requested_by": current_user
+            }
+        )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}")
 
 @router.put("/{category_id}", response_model=Category, dependencies=[Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))])
@@ -56,12 +135,34 @@ def update_category(
     current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
 ) -> Category:
     try:
-        logger.info(f"Category update requested by {current_user}: {category_id}")
+        logger.info(
+            "Category update requested",
+            extra={
+                "requested_by": current_user,
+                "category_id": category_id
+            }
+        )
+
         response = CategoryService.update_category(category_id, category_data)
         
+        logger.info(
+            "Category updated successfully",
+            extra={
+                "requested_by": current_user,
+                "category_id": category_id
+            }
+        )
+
         return response
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating category: {str(e)}")
+        logger.error(
+            "Error updating category.",
+            extra={
+                "error": str(e),
+                "requested_by": current_user,
+                "category_id": category_id
+            }
+        )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}")

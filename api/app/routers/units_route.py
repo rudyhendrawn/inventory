@@ -18,16 +18,38 @@ def list_units(
     search: Optional[str] = Query(None, description="Search term to filter units by name or symbol"),
 ) -> UnitListResponse:
     try:
+        logger.info(
+            "Unit list requested",
+            extra={
+                "page": page,
+                "page_size": page_size,
+                "search": search
+            }
+        )
+
         response = UnitService.get_all_units(
             page=page,
             page_size=page_size,
             search=search
         )
 
+        logger.info(
+            "Unit list retrieved",
+            extra={
+                "unit_count": len(response.units)
+            }
+        )
+
         return response
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(
+            "Error in list_units.",
+            extra={
+                "error": str(e)
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=str(e)
@@ -42,11 +64,33 @@ def get_unit(
     Retrieve a single unit by its ID.
     """
     try:
+        logger.info(
+            "Unit detail requested",
+            extra={
+                "unit_id": unit_id
+            }
+        )
+
         response = UnitService.get_unit_by_id(unit_id)
+
+        logger.info(
+            "Unit detail retrieved",
+            extra={
+                "unit_id": unit_id
+            }
+        )
+
         return response
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(
+            "Error in get_unit.",
+            extra={
+                "error": str(e),
+                "unit_id": unit_id
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=str(e)
@@ -82,6 +126,14 @@ def create_unit(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(
+            "Unit creation failed",
+            extra={
+                "created_by": current_user['id'],
+                "unit_name": unit_data.name,
+                "unit_symbol": unit_data.symbol
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
@@ -118,7 +170,6 @@ def update_unit(
     except HTTPException:
         raise
     except Exception as e:
-        response = UnitService.update_unit(unit_id, unit_data)
         logger.error(
             "Unit update failed",
             extra={
@@ -148,7 +199,9 @@ def delete_unit(
                 "unit_id": unit_id
             }
         )
+
         UnitService.delete_unit(unit_id)
+        
         logger.info(
             "Unit deleted successfully",
             extra={

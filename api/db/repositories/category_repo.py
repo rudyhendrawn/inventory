@@ -31,7 +31,7 @@ class CategoryRepository:
             category_list = fetch_all(query, tuple(params))
             return category_list
         except Exception as e:
-            raise RuntimeError(f"Error fetching all categories: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def get_by_id(category_id: int) -> Optional[Dict[str, Any]]:
@@ -48,7 +48,7 @@ class CategoryRepository:
             cat_id = fetch_one(query, (category_id,))
             return cat_id
         except Exception as e:
-            raise RuntimeError(f"Error fetching category by ID: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def exists_by_name(name: str) -> bool:
@@ -65,7 +65,7 @@ class CategoryRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError(f"Error checking if category exists by name: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def exists_by_id(category_id: int) -> bool:
@@ -82,7 +82,7 @@ class CategoryRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError(f"Error checking if category exists by ID: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def create(category: CategoryCreate) -> int:
@@ -100,7 +100,7 @@ class CategoryRepository:
 
             return new_id['id']
         except Exception as e:
-            raise RuntimeError(f"Error creating category: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def update(category_id: int, category: CategoryUpdate) -> None:
@@ -115,7 +115,7 @@ class CategoryRepository:
                 """
             execute(query, (category.name, category_id))
         except Exception as e:
-            raise RuntimeError(f"Error updating category: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def delete(category_id: int) -> bool:
@@ -128,4 +128,4 @@ class CategoryRepository:
 
             return rows_affected > 0
         except Exception as e:
-            raise RuntimeError(f"Error deleting category: {str(e)}")
+            raise RuntimeError({str(e)})

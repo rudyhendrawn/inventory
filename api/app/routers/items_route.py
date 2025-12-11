@@ -17,22 +17,83 @@ def list_items(
     search: Optional[str] = Query(None, description="Search term for SKU or name"),
     current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
 ) -> ItemListResponse:
-    items_data = ItemService.get_all_items(
-        active_only=bool(active_only),
-        page=page,
-        page_size=page_size,
-        search=search
-    )
+    try:
+        logger.info(
+            "Item list requested",
+            extra={
+                "requested_by": current_user,
+                "search": search,
+                "active_only": active_only,
+                "page": page,
+                "page_size": page_size
+            }
+        )
 
-    return items_data
+        items_data = ItemService.get_all_items(
+            active_only=bool(active_only),
+            page=page,
+            page_size=page_size,
+            search=search
+        )
+
+        logger.info(
+            "Item list retrieved",
+            extra={
+                "requested_by": current_user,
+                "item_count": len(items_data.items)
+            }
+        )
+
+        return items_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error in list_items.",
+            extra={
+                "error": str(e),
+                "requested_by": current_user
+            }
+        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
 @router.get("/{item_id}", response_model=ItemResponse)
 def get_item(
     item_id: int = Path(..., gt=0, description="The ID of the item to retrieve"),
     current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
 ) -> ItemResponse:
-    item_data = ItemService.get_item_by_id(item_id)
-    return item_data
+    try:
+        logger.info(
+            "Item detail requested",
+            extra={
+                "requested_by": current_user,
+                "item_id": item_id
+            }
+        )
+
+        item_data = ItemService.get_item_by_id(item_id)
+        
+        logger.info(
+            "Item detail retrieved",
+            extra={
+                "requested_by": current_user,
+                "item_id": item_id
+            }
+        )
+
+        return item_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error in get_item.",
+            extra={
+                "error": str(e),
+                "requested_by": current_user,
+                "item_id": item_id
+            }
+        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
 @router.post("/", response_model=ItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))])
 def create_item(
@@ -40,13 +101,36 @@ def create_item(
     current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
 ) -> ItemResponse:
     try:
-        logger.info(f"Item creation requested by {current_user}: {item_data.unit_id}")
+        logger.info(
+            "Item creation requested",
+            extra={
+                "requested_by": current_user,
+                "item_unit_id": item_data.unit_id
+            }
+        )
+
         response = ItemService.create_item(item_data)
+        
+        logger.info(
+            "Item created successfully",
+            extra={
+                "requested_by": current_user,
+                "item_id": response.id,
+                "item_unit_id": response.unit_id
+            }
+        )
+
         return response
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating item: {str(e)}")
+        logger.error(
+            "Error in create_item. ",
+            extra={
+                "error": str(e),
+                "requested_by": current_user
+            }
+        )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}")
     
 @router.put("/{item_id}", response_model=ItemResponse, dependencies=[Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))])
@@ -56,8 +140,24 @@ def update_item(
     current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
 ) -> ItemResponse:
     try:
-        logger.info(f"Item update requested by {current_user}: {item_id}")
+        logger.info(
+            "Item update requested",
+            extra={
+                "requested_by": current_user,
+                "item_id": item_id
+            }
+        )
+        
         response = ItemService.update_item(item_id, item_data)
+        
+        logger.info(
+            "Item updated successfully",
+            extra={
+                "requested_by": current_user,
+                "item_id": item_id
+            }
+        )
+        
         return response
     except HTTPException:
         raise
@@ -71,10 +171,32 @@ def delete_item(
     current_user: UserRole = Depends(require_role([UserRole.ADMIN]))
 ) -> None:
     try:
-        logger.info(f"Item deletion requested by {current_user}: {item_id}")
+        logger.info(
+            "Item deletion requested",
+            extra={
+                "requested_by": current_user,
+                "item_id": item_id
+            }
+        )
+
         ItemService.delete_item(item_id)
+
+        logger.info(
+            "Item deleted successfully",
+            extra={
+                "requested_by": current_user,
+                "item_id": item_id
+            }
+        )
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting item {item_id}: {str(e)}")
+        logger.error(
+            "Error in delete_item.",
+            extra={
+                "error": str(e),
+                "requested_by": current_user,
+                "item_id": item_id
+            }
+        )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}")

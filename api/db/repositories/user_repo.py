@@ -42,7 +42,7 @@ class UserRepository:
 
             return fetch_all(query, tuple(params))
         except Exception as e:
-            raise RuntimeError(f"Error fetching users: {str(e)}")
+            raise RuntimeError({str(e)})
     
     @staticmethod
     def count(active_only: bool = True, search: Optional[str] = None) -> int:
@@ -72,7 +72,7 @@ class UserRepository:
             else:
                 return 0
         except Exception as e:
-            raise RuntimeError(f"Error counting users: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def get_by_id(user_id: int) -> Optional[Dict[str, Any]]:
@@ -92,7 +92,7 @@ class UserRepository:
 
             return result
         except Exception as e:
-            raise RuntimeError(f"Error fetching user by ID: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     # def get_by_oid(m365_oid: str) -> Optional[Dict[str, Any]]:
@@ -132,7 +132,7 @@ class UserRepository:
 
             return result
         except Exception as e:
-            raise RuntimeError(f"Error fetching user by email: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def get_by_username(username: str) -> Optional[Dict[str, Any]]:
@@ -152,7 +152,7 @@ class UserRepository:
 
             return result
         except Exception as e:
-            raise RuntimeError(f"Error fetching user by username: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def create(user_data: UserCreate, password_hash: str) -> Optional[Dict[str, Any]]:
@@ -161,8 +161,8 @@ class UserRepository:
         """
         try:
             query = """
-                INSERT INTO users (username, password_hash, name, email, role, active)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO users (username, password_hash, name, email, role, active, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
             result = execute(
                 query,
@@ -172,7 +172,8 @@ class UserRepository:
                     user_data.name,
                     user_data.email,
                     user_data.role.value,
-                    user_data.active
+                    user_data.active,
+                    datetime.now(timezone.utc)
                 )
             )
 
@@ -183,7 +184,7 @@ class UserRepository:
             # Alternative: get by unique identifier if ID not returned
             return UserRepository.get_by_username(user_data.username.lower())
         except Exception as e:
-            raise RuntimeError(f"Error creating user: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def update(user_id: int, user_data: UserUpdate, password_hash: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -232,7 +233,7 @@ class UserRepository:
             
             return None
         except Exception as e:
-            raise RuntimeError(f"Error updating user: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def delete(user_id: int) -> bool:
@@ -251,7 +252,7 @@ class UserRepository:
 
             return False
         except Exception as e:
-            raise RuntimeError(f"Error deleting user: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def exists_by_id(user_id: int, exclude_id: Optional[int] = None) -> bool:
@@ -278,7 +279,7 @@ class UserRepository:
             
             return False
         except Exception as e:
-            raise RuntimeError(f"Error checking user existence by ID: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def exists_by_username(username: str, exclude_id: Optional[int] = None) -> bool:
@@ -305,7 +306,7 @@ class UserRepository:
             
             return False
         except Exception as e:
-            raise RuntimeError(f"Error checking user existence by username: {str(e)}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def exists_by_email(email: str, exclude_id: Optional[int] = None) -> bool:
@@ -332,7 +333,7 @@ class UserRepository:
             
             return False
         except Exception as e:
-            raise RuntimeError(f"Error checking user existence by email: {str(e)}")
+            raise RuntimeError({str(e)})
 
     # @staticmethod
     # def exists_by_oid(m365_oid: str, exclude_id: Optional[int] = None) -> bool:
@@ -378,4 +379,4 @@ class UserRepository:
             
             return False
         except Exception as e:
-            raise RuntimeError(f"Error updating user active status: {str(e)}")
+            raise RuntimeError({str(e)})

@@ -39,7 +39,7 @@ class ItemRepository:
 
             return fetch_all(query, tuple(params))
         except Exception as e:
-            raise RuntimeError(f"Error fetching all items: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def get_by_id(item_id: int) -> Optional[Dict[str, Any]]:
@@ -57,7 +57,7 @@ class ItemRepository:
                 """
             return fetch_one(query, (item_id,))
         except Exception as e:
-            raise RuntimeError(f"Error fetching item by ID: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def get_by_sku(sku: str) -> Optional[Dict[str, Any]]:
@@ -75,7 +75,7 @@ class ItemRepository:
                 """
             return fetch_one(query, (sku.strip().upper(),))
         except Exception as e:
-            raise RuntimeError(f"Error fetching item by SKU: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def create(item_data: ItemCreate) -> Optional[Dict[str, Any]]:
@@ -102,7 +102,7 @@ class ItemRepository:
             
             return ItemRepository.get_by_sku(item_data.sku)
         except Exception as e:
-            raise RuntimeError(f"Error creating item: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def update(item_id: int, item_data: ItemUpdate) -> Optional[Dict[str, Any]]:
@@ -162,7 +162,7 @@ class ItemRepository:
             else:
                 return None
         except Exception as e:
-            raise RuntimeError(f"Error updating item: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def delete(item_id: int) -> bool:
@@ -181,7 +181,7 @@ class ItemRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError(f"Error deleting item: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def exists_by_sku(sku: str, exclude_id: Optional[int] = None) -> bool:
@@ -204,7 +204,7 @@ class ItemRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError(f"Error checking existence of item by SKU: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def count(active_only: bool = True, search: Optional[str] = None) -> int:
@@ -231,4 +231,4 @@ class ItemRepository:
 
             return result.get("count", 0) if result else 0
         except Exception as e:
-            raise RuntimeError(f"Error counting items: {str(e)}")
+            raise RuntimeError({str(e)})

@@ -100,7 +100,7 @@ def create_issue(
             }
         )
 
-        new_issue = IssueService.create_issue(issue_data)
+        new_issue = IssueService.create_issue(issue_data, current_user["id"])
         
         logger.info(
             "Issue created successfully",
