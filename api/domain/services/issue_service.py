@@ -1,7 +1,7 @@
 from typing import Optional, List
 from fastapi import HTTPException, status
 # from api.db.repositories.item_repo import ItemRepository
-from api.db.repositories.user_repo import UserRepository
+from db.repositories.user_repo import UserRepository
 from db.repositories.issue_repo import IssueRepository
 from db.repositories.user_repo import UserRepository
 from schemas.issues import IssueCreate, IssueUpdate, IssueResponse, IssueListResponse

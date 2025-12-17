@@ -182,7 +182,24 @@ class ItemRepository:
                 return False
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
+    @staticmethod
+    def exists_by_id(item_id: int) -> bool:
+        """
+        Check if an item exists by its ID.
+        """
+        try:
+            if not isinstance(item_id, int) or item_id <= 0:
+                raise ValueError("Invalid item ID")
+            
+            result = fetch_one("SELECT COUNT(*) as count FROM items WHERE id = %s", (item_id,))
+            if result and result.get("count", 0) > 0:
+                return True
+            else:
+                return False
+        except Exception as e:
+            raise RuntimeError({str(e)})
+
     @staticmethod
     def exists_by_sku(sku: str, exclude_id: Optional[int] = None) -> bool:
         """

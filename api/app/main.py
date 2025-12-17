@@ -8,7 +8,8 @@ from app.routers import (
     items_route,
     category_route,
     issue_route,
-    test_auth
+    issue_item_route
+    # test_auth
 )
 from app.middleware import LoggingMiddleware, AuthContextMiddleware
 from db.pool import init_pool, close_pool
@@ -51,9 +52,11 @@ app.include_router(units_route.router)
 app.include_router(items_route.router)
 app.include_router(category_route.router)
 app.include_router(issue_route.router)
+app.include_router(issue_item_route.router)
 
 if settings.DEBUG:
-    app.include_router(test_auth.router)
+    pass
+    # app.include_router(test_auth.router)
 
 
 @app.get("/health", tags=["Health"])
@@ -63,7 +66,7 @@ def health_check():
 
 if __name__ == "__main__":
     uvicorn.run(
-        "main:app",
+        "app.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True
