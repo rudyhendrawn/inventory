@@ -24,17 +24,17 @@ class UserRepository:
                 params.append(True)
 
             if search:
-                where_conditions.append("(username LIKE %s OR email LIKE %s)")
+                where_conditions.append("(email LIKE %s OR name LIKE %s)")
                 search_param = f"%{search}%"
                 params.extend([search_param, search_param])
 
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
             query = f"""
-                SELECT id, username, password_hash, name, email, role, active, created_at
+                SELECT id, email, password_hash, name, role, active, created_at
                 FROM users
                 {where_clause}
-                ORDER BY name
+                ORDER BY email
                 LIMIT %s OFFSET %s
                 """
 
@@ -58,7 +58,7 @@ class UserRepository:
                 params.append(True)
 
             if search:
-                where_conditions.append("(name LIKE %s OR email LIKE %s)")
+                where_conditions.append("(email LIKE %s OR name LIKE %s)")
                 search_params = f"%{search}%"
                 params.extend([search_params, search_params])
 
@@ -84,7 +84,7 @@ class UserRepository:
                 raise ValueError("invalid user id")
             
             query = """
-                SELECT id, username, password_hash, name, email, role, active, created_at
+                SELECT id, email, password_hash, name, role, active, created_at
                 FROM users
                 WHERE id = %s
                 """
@@ -124,7 +124,7 @@ class UserRepository:
                 raise ValueError("invalid email")
             
             query = """
-                SELECT id, username, password_hash, name, email, role, active, created_at
+                SELECT id, email, password_hash, name, role, active, created_at
                 FROM users
                 WHERE email = %s
                 """
@@ -134,25 +134,25 @@ class UserRepository:
         except Exception as e:
             raise RuntimeError({str(e)})
 
-    @staticmethod
-    def get_by_username(username: str) -> Optional[Dict[str, Any]]:
-        """
-        Get a user by username
-        """
-        try:
-            if not username or not username.strip():
-                raise ValueError("invalid username")
+    # @staticmethod
+    # def get_by_username(username: str) -> Optional[Dict[str, Any]]:
+    #     """
+    #     Get a user by username
+    #     """
+    #     try:
+    #         if not username or not username.strip():
+    #             raise ValueError("invalid username")
             
-            query = """
-                SELECT id, username, password_hash, name, email, role, active, created_at
-                FROM users
-                WHERE username = %s
-                """
-            result = fetch_one(query, (username,))
+    #         query = """
+    #             SELECT id, email, password_hash, name, role, active, created_at
+    #             FROM users
+    #             WHERE username = %s
+    #             """
+    #         result = fetch_one(query, (username,))
 
-            return result
-        except Exception as e:
-            raise RuntimeError({str(e)})
+    #         return result
+    #     except Exception as e:
+    #         raise RuntimeError({str(e)})
 
     @staticmethod
     def create(user_data: UserCreate, password_hash: str) -> Optional[Dict[str, Any]]:
@@ -161,16 +161,15 @@ class UserRepository:
         """
         try:
             query = """
-                INSERT INTO users (username, password_hash, name, email, role, active, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO users (email, password_hash, name, role, active, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """
             result = execute(
                 query,
                 (
-                    user_data.username.lower(),
+                    user_data.email.lower(),
                     password_hash,
                     user_data.name,
-                    user_data.email,
                     user_data.role.value,
                     user_data.active,
                     datetime.now(timezone.utc)
@@ -182,7 +181,7 @@ class UserRepository:
                 return UserRepository.get_by_id(result)
             
             # Alternative: get by unique identifier if ID not returned
-            return UserRepository.get_by_username(user_data.username.lower())
+            return UserRepository.get_by_email(user_data.email.lower())
         except Exception as e:
             raise RuntimeError({str(e)})
 
@@ -281,32 +280,32 @@ class UserRepository:
         except Exception as e:
             raise RuntimeError({str(e)})
 
-    @staticmethod
-    def exists_by_username(username: str, exclude_id: Optional[int] = None) -> bool:
-        """
-        Check if a user exists by username
-        """
-        try:
-            if not username or not username.strip():
-                return False
+    # @staticmethod
+    # def exists_by_username(username: str, exclude_id: Optional[int] = None) -> bool:
+    #     """
+    #     Check if a user exists by username
+    #     """
+    #     try:
+    #         if not username or not username.strip():
+    #             return False
             
-            if exclude_id:
-                result = fetch_one(
-                    "SELECT COUNT(*) as count FROM users WHERE username = %s AND id != %s",
-                    (username, exclude_id)
-                )
-            else:
-                result = fetch_one(
-                    "SELECT COUNT(*) as count FROM users WHERE username = %s",
-                    (username,)
-                )
+    #         if exclude_id:
+    #             result = fetch_one(
+    #                 "SELECT COUNT(*) as count FROM users WHERE username = %s AND id != %s",
+    #                 (username, exclude_id)
+    #             )
+    #         else:
+    #             result = fetch_one(
+    #                 "SELECT COUNT(*) as count FROM users WHERE username = %s",
+    #                 (username,)
+    #             )
             
-            if result and result['count'] > 0:
-                return True
+    #         if result and result['count'] > 0:
+    #             return True
             
-            return False
-        except Exception as e:
-            raise RuntimeError({str(e)})
+    #         return False
+    #     except Exception as e:
+    #         raise RuntimeError({str(e)})
 
     @staticmethod
     def exists_by_email(email: str, exclude_id: Optional[int] = None) -> bool:

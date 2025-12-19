@@ -119,7 +119,7 @@ def update_user(
             extra={
                 "requested_by": current_user['id'],
                 "requestor_email": current_user['email'],
-                "target_fields": list(user_data.dict(exclude_unset=True).keys()),
+                "target_fields": list(user_data.model_dump(exclude_unset=True).keys()),
             }
         )
         response = UserService.update_user(user_id, user_data)
@@ -194,6 +194,14 @@ def activate_user(
     Activate or deactivate a user.
     """
     try:
+        logger.info(
+            "Activating user",
+            extra={
+                "activated_by": current_user['id'],
+                "target_user_id": user_id
+            }
+        )
+        
         response = UserService.activate_user(user_id=user_id, activate=activate)
 
         return response
@@ -215,6 +223,14 @@ def deactivate_user(
     Deactivate a user.
     """
     try:
+        logger.info(
+            "Deactivating user",
+            extra={
+                "activated_by": current_user['id'],
+                "target_user_id": user_id
+            }
+        )
+
         response = UserService.deactivate_user(user_id=user_id, deactivate=deactivate)
 
         return response

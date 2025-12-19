@@ -95,12 +95,12 @@ class UserService:
         Authenticate user and return JWT token.
         """
         try:
-            user_data = UserRepository.get_by_username(login_date.username)
+            user_data = UserRepository.get_by_email(login_date.email)
 
             if not user_data:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid username or password."
+                    detail="Invalid email or password."
                 )
             
             if not verify_password(login_date.password, user_data['password_hash']):
@@ -118,7 +118,7 @@ class UserService:
             # Create JWT Access Token
             access_token = create_access_token(
                 data={
-                    "sub": user_data['username'],
+                    "sub": user_data['email'],
                     "user_id": user_data['id'],
                     "role": user_data['role']
                 },
@@ -145,14 +145,6 @@ class UserService:
         """
         Create a new user.
         """
-        # Check for existing user with same username
-        existing_user_by_username = UserRepository.exists_by_username(user_data.username)
-        if existing_user_by_username:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"User with username {user_data.username} already exists."
-            )
-
         # Check for existing user with same email
         existing_user_by_email = UserRepository.exists_by_email(user_data.email)
         if existing_user_by_email:

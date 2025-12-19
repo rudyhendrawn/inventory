@@ -9,23 +9,23 @@ class UserRole(str, Enum):
     AUDITOR = "AUDITOR"
 
 class User(BaseModel):
-    name: str = Field(..., min_length=1, max_length=120, description="The full name of the user")
     email: EmailStr = Field(..., description="The email address of the user")
+    name: str = Field(..., min_length=1, max_length=120, description="The full name of the user")
     role: UserRole = Field(default=UserRole.STAFF, description="The role of the user within the system")
     active: int = Field(default=1, description="Indicates if the user is active")
 
 class UserCreate(User):
-    username: str = Field(..., min_length=3, max_length=50, description="The username for the user account")
+    email: EmailStr = Field(..., description="The email address for the user account")
     password: str = Field(..., min_length=8, description="The password for the user account")
 
-    @field_validator('username')
-    def validate_username(cls, v):
+    @field_validator('email')
+    def validate_email(cls, v):
         if not v.strip():
-            raise ValueError('username must not be empty or whitespace')
+            raise ValueError('email must not be empty or whitespace')
         return v.strip()
     
 class UserLogin(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50, description="The username for login")
+    email: EmailStr = Field(..., description="The email address for login")
     password: str = Field(..., min_length=8, description="The password for login")
 
 class UserUpdate(BaseModel):
@@ -37,7 +37,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(User):
     id: int
-    username: str
+    email: EmailStr
     created_at: datetime
 
     class Config:
