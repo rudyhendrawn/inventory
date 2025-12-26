@@ -1,8 +1,8 @@
-from typing import Optional, List
+from typing import Optional
 from fastapi import HTTPException, status
 from db.repositories.item_repo import ItemRepository
 from db.repositories.category_repo import CategoryRepository
-from db.repositories.unit_repo import UnitRepository
+from db.repositories.units_repo import UnitsRepository
 from schemas.items import ItemCreate, ItemUpdate, ItemResponse, ItemListResponse
 from core.logging import get_logger
 
@@ -71,16 +71,16 @@ class ItemService:
         Create a new item.
         """
         try:
-            # Validate foreign keys
-            if not CategoryRepository.exists_by_sku(item_data.category_id):
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Category ID {item_data.category_id} does not exist")
+            # # Validate foreign keys
+            # if not CategoryRepository.exists_by_sku(item_data.category_id):
+            #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Category ID {item_data.category_id} does not exist")
             
             # validate category exists
             if not CategoryRepository.exists_by_id(item_data.category_id):
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Category ID {item_data.category_id} does not exist")
             
             # Validate unit exists
-            if not UnitRepository.exists_by_id(item_data.unit_id):
+            if not UnitsRepository.exists_by_id(item_data.unit_id):
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unit ID {item_data.unit_id} does not exist")
             
             created_item = ItemRepository.create(item_data)
@@ -118,7 +118,7 @@ class ItemService:
             if item_data.category_id and not CategoryRepository.exists_by_id(item_data.category_id):
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Category ID {item_data.category_id} does not exist")
             
-            if item_data.unit_id and not UnitRepository.exists_by_id(item_data.unit_id):
+            if item_data.unit_id and not UnitsRepository.exists_by_id(item_data.unit_id):
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unit ID {item_data.unit_id} does not exist")
             
             updated_item = ItemRepository.update(item_id, item_data)

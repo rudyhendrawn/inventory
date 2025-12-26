@@ -6,37 +6,34 @@ from core.security.password import hash_password
 from db.pool import init_pool, execute, fetch_one
 from datetime import datetime, timezone
 
-def create_admin_user(username: str, password: str, name: str, email: str):
+def create_admin_user(email: str, password: str, name: str):
     init_pool()
 
-    hashed_password = hash_password(password)
+    password_hash = hash_password(password)
     created_at = datetime.now(timezone.utc)
 
-    existing = fetch_one("SELECT id, username FROM users WHERE username = %s OR email = %s", (username, email))
+    existing = fetch_one("SELECT id, email FROM users WHERE email = %s", (email,))
 
     if existing:
-        print(f"User with username '{username}' or email '{email}' already exists.")
+        print(f"User with email '{email}' already exists.")
         return
     
-    password_hash = hash_password(password)
-
     query = """
-    INSERT INTO users (username, password_hash, name, email, role, active, created_at)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO users (email, password_hash, name, role, active, created_at)
+    VALUES (%s, %s, %s, %s, %s, %s)
     """
 
     try:
-        result = execute(query, (username, password_hash, name, email, 'ADMIN', 1, created_at))
+        result = execute(query, (email, password_hash, name, 'ADMIN', 1, created_at))
 
         if result:
-            created_user = fetch_one("SELECT id, username, name, email, role, active, created_at FROM users WHERE username = %s", (username,))
+            created_user = fetch_one("SELECT id, name, email, role, active, created_at FROM users WHERE email = %s", (email,))
 
             if created_user:
                 print("Admin user created successfully:")
                 print(f"    ID: {created_user['id']}")
-                print(f"    Username: {created_user['username']}")
-                print(f"    Name: {created_user['name']}")
                 print(f"    Email: {created_user['email']}")
+                print(f"    Name: {created_user['name']}")
                 print(f"    Role: {created_user['role']}")
                 return True
             else:
@@ -50,20 +47,19 @@ if __name__ == "__main__":
     print(f"Creating admin user...")
 
     admin_data = {
-        "username": "admin",
+        "email": "it.security@example.com",
         "password": "adminpass",
         "name": "Administrator",
-        "email": "admin@example.com"
     }
     
-    print(f"Admin user: {admin_data['username']}")
+    print(f"Admin user: {admin_data['email']}")
     print(f"Email: {admin_data['email']}")
 
     success = create_admin_user(**admin_data)
 
     if success:
         print("Admin user creation completed successfully.")
-        print(f"Username: {admin_data['username']}")
+        print(f"Email: {admin_data['email']}")
         print(f"Password: {admin_data['password']}")
     
     sys.exit(0 if success else 1)

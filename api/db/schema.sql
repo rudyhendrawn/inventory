@@ -1,8 +1,8 @@
 CREATE TABLE users (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  m365_oid VARCHAR(64) NOT NULL UNIQUE, -- Entra object id
   name VARCHAR(120) NOT NULL,
   email VARCHAR(160) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
   role ENUM('ADMIN','STAFF','AUDITOR') NOT NULL DEFAULT 'STAFF',
   active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -81,6 +81,7 @@ CREATE TABLE issues (
   approved_by BIGINT,
   issued_at DATETIME,
   note VARCHAR(255),
+  updated_at DATETIME,
   CONSTRAINT fk_issue_req FOREIGN KEY (requested_by) REFERENCES users(id),
   CONSTRAINT fk_issue_app FOREIGN KEY (approved_by) REFERENCES users(id)
 ) ENGINE=InnoDB;

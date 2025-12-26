@@ -57,6 +57,7 @@ class ItemResponse(BaseModel):
     id: int
     owner_user_id: Optional[int] = None
     created_at: Optional[datetime] = None
+    unit_id: Optional[int] = None
 
     class Config:
         from_attributes = True

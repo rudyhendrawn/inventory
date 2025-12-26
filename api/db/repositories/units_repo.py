@@ -34,7 +34,7 @@ class UnitsRepository:
 
             return rows
         except Exception as e:
-            raise RuntimeError(f"Error fetching all units: {e}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def count(search: Optional[str] = None) -> int:
@@ -58,7 +58,7 @@ class UnitsRepository:
 
             return row['count'] if row else 0
         except Exception as e:
-            raise RuntimeError(f"Error counting units: {e}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def get_by_id(unit_id: int) -> Optional[Dict[str, Any]]:
@@ -71,7 +71,7 @@ class UnitsRepository:
             
             return row
         except Exception as e:
-            raise RuntimeError(f"Error fetching unit by id {unit_id}: {e}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def get_by_name(name: str) -> Optional[Dict[str, Any]]:
@@ -84,7 +84,7 @@ class UnitsRepository:
 
             return row
         except Exception as e:
-            raise RuntimeError(f"Error fetching unit by name '{name}': {e}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def get_by_symbol(symbol: str) -> Optional[Dict[str, Any]]:
@@ -97,7 +97,7 @@ class UnitsRepository:
 
             return row
         except Exception as e:
-            raise RuntimeError(f"Error fetching unit by symbol '{symbol}': {e}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def create(unit_data: UnitCreate) -> Dict[str, Any]:
@@ -114,7 +114,7 @@ class UnitsRepository:
             
             return create_unit
         except Exception as e:
-            raise RuntimeError(f"Error creating unit: {e}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def update(unit_id: int, unit_data: UnitUpdate) -> Optional[Dict[str, Any]]:
@@ -157,7 +157,7 @@ class UnitsRepository:
             
             return None
         except Exception as e:
-            raise RuntimeError(f"Error updating unit with id {unit_id}: {e}")
+            raise RuntimeError({str(e)})
 
     @staticmethod
     def delete(unit_id: int) -> bool:
@@ -176,7 +176,7 @@ class UnitsRepository:
 
             return rows_affected > 0
         except Exception as e:
-            raise RuntimeError(f"Error deleting unit {unit_id}: {str(e)}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def exists_by_name(name: str, exclude_id: Optional[int] = None) -> bool:
@@ -194,7 +194,7 @@ class UnitsRepository:
             
             return False
         except Exception as e:
-            raise RuntimeError(f"Error checking existence of unit name '{name}': {e}")
+            raise RuntimeError({str(e)})
         
     @staticmethod
     def exists_by_symbol(symbol: str, exclude_id: Optional[int] = None) -> bool:
@@ -212,4 +212,21 @@ class UnitsRepository:
             
             return False
         except Exception as e:
-            raise RuntimeError(f"Error checking existence of unit symbol '{symbol}': {e}")
+            raise RuntimeError({str(e)})
+
+    @staticmethod
+    def exists_by_id(unit_id: int) -> bool:
+        try:
+            query = """
+                SELECT COUNT(1) as count
+                FROM units
+                WHERE id = %s
+                """
+            
+            result = fetch_one(query, (unit_id,))
+            if result is not None:
+                return result['count'] > 0
+            else:
+                return False
+        except Exception as e:
+            raise RuntimeError({str(e)})
