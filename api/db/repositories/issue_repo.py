@@ -26,10 +26,10 @@ class IssueRepository:
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
             query = f"""
-                SELECT id, code, status, requested_by, approved_by, issued_at, note, created_at, updated_at
+                SELECT id, code, status, requested_by, approved_by, issued_at, note, updated_at
                 FROM issues
                 {where_clause}
-                ORDER BY created_at DESC
+                ORDER BY issued_at DESC
                 LIMIT %s OFFSET %s
                 """
             params.extend([limit, offset])
@@ -48,7 +48,7 @@ class IssueRepository:
                 raise ValueError("Invalid issue ID")
             
             query = """
-                SELECT id, code, status, requested_by, approved_by, issued_at, note, created_at, updated_at
+                SELECT id, code, status, requested_by, approved_by, issued_at, note, updated_at
                 FROM issues
                 WHERE id = %s
                 """
@@ -66,7 +66,7 @@ class IssueRepository:
                 raise ValueError("Invalid issue code")
             
             query = """
-                SELECT id, code, status, requested_by, approved_by, issued_at, note, created_at, updated_at
+                SELECT id, code, status, requested_by, approved_by, issued_at, note, updated_at
                 FROM issues
                 WHERE code = %s
                 """
@@ -81,9 +81,9 @@ class IssueRepository:
         """
         try:
             query = """
-                INSERT INTO issues (code, status, requested_by, approved_by, issued_at, note, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
-                RETURNING id, code, status, requested_by, approved_by, issued_at, note, created_at, updated_at
+                INSERT INTO issues (code, status, requested_by, approved_by, issued_at, note, updated_at)
+                VALUES (%s, %s, %s, %s, NOW(), %s, NOW())
+                RETURNING id, code, status, requested_by, approved_by, issued_at, note, updated_at
                 """
             params = (
                 issue_data.code,
@@ -225,7 +225,39 @@ class IssueRepository:
                 return 0
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+    
+    @staticmethod
+    def count_with_filter(search: Optional[str] = None, status_filter: Optional[str] = None) -> int:
+        try:
+            where_conditions = []
+            params = []
+
+            if search:
+                where_conditions.append("(code LIKE %s OR status LIKE %s)")
+                search_param = f"%{search}%"
+                params.extend([search_param, search_param, search_param])
+
+            if status_filter:
+                where_conditions.append("status = %s")
+                params.append(status_filter)
+
+            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+
+            query = f"""
+                SELECT COUNT(1) as count
+                FROM issues
+                {where_clause}
+                """
+            
+            result = fetch_one(query, tuple(params))
+
+            if result is not None:
+                return result['count']
+            else:
+                return 0
+        except Exception as e:
+            raise RuntimeError({str(e)})
+    
     @staticmethod
     def exists_by_code(issue_code: str) -> bool:
         try:

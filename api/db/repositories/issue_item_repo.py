@@ -84,9 +84,9 @@ class IssueItemRepository:
                     i.name as item_name,
                     i.unit_id,
                     u.symbol as unit_symbol
-                FROM issue_item ii
+                FROM issue_items ii
                 LEFT JOIN items i ON ii.item_id = i.id
-                LEF JOIN units u ON i.unit_id = u.id
+                LEFT JOIN units u ON i.unit_id = u.id
                 WHERE ii.issue_id = %s
                 ORDER BY ii.id
             """

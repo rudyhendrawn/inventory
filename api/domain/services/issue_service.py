@@ -24,14 +24,19 @@ class IssueService:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Page size must be between 1 and 100")
             
             offset = (page - 1) * page_size
+
+            # Fetch issues with filters and pagination
             issue_data = IssueRepository.get_all(
                 limit=page_size,
                 offset=offset,
                 search=search,
                 status_filter=status_filter
             )
-            total = IssueRepository.count()
+            
+            # Get total count for pagination
+            total = IssueRepository.count_with_filter(search=search, status_filter=status_filter)
 
+            # Convert to response models
             issues = [IssueResponse(**issue) for issue in issue_data]
 
             results = IssueListResponse(
@@ -40,6 +45,17 @@ class IssueService:
                 page_size=page_size,
                 issues=issues
                 
+            )
+
+            logger.info(
+                "Issues retrieved successfully",
+                extra={
+                    "page": page,
+                    "page_size": page_size,
+                    "total": total,
+                    "search": search,
+                    "status_filter": status_filter
+                }
             )
 
             return results

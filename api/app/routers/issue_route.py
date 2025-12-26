@@ -1,6 +1,7 @@
 from typing import Optional
 from core.logging import get_logger
 from domain.services.issue_service import IssueService
+from domain.services.dashboard_service import DashboardService
 from app.dependencies import require_role, get_current_user
 from schemas.users import UserRole
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, status
@@ -8,6 +9,34 @@ from schemas.issues import Issue, IssueCreate, IssueUpdate, IssueListResponse, I
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/issues", tags=["Issues"])
+
+@router.get("/stats", tags=["Issues"])
+def get_issue_statistics(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Get issue statistics for dashboard
+    """
+    try:
+        logger.info(
+            "Issue statistics requested",
+            extra={
+                "requested_by": current_user["id"]
+            }
+        )
+
+        stats = DashboardService.get_issue_statistics()
+
+        return stats
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error retrieving issue statistics",
+            extra={
+                "error": str(e),
+                "requested_by": current_user["id"]
+            }
+        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
 @router.get("/", response_model=IssueListResponse)
 def list_issues(
@@ -48,7 +77,7 @@ def get_issue(
 ) -> IssueResponse:
     try:
         logger.info(
-            "Issue detailes requested",
+            "Issue details requested",
             extra={
                 "requested_by": current_user["id"],
                 "issue_id": issue_id
@@ -84,6 +113,116 @@ def get_issue_by_code(
     except Exception as e:
         logger.error(f"Error in get_issue_by_code. ", extra={"error": str(e), "requested_by": current_user["id"]})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+
+@router.get("/{issue_id}/items", tags=["Issues"])
+def get_issue_items_details(
+    issue_id: int = Path(..., gt=0, description="The ID of the issue"),
+    current_user: dict = Depends(get_current_user)
+) -> dict:
+    """
+    Get detailed items for a specific issue with full metadata (categories, units, etc).
+    """
+    try:
+        logger.info(
+            "Issue items details requested",
+            extra={
+                "requested_by": current_user['id'],
+                "issue_id": issue_id
+            }
+        )
+
+        items_data = DashboardService.get_items_by_issue(issue_id)
+
+        logger.info(
+            "Issue items details retrieved successfully",
+            extra={
+                "requested_by": current_user['id'],
+                "issue_id": issue_id,
+                "item_count": len(items_data.get('items', []))
+            }
+        )
+
+        return items_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error retrieving issue items details",
+            extra={
+                "error": str(e),
+                "issue_id": issue_id,
+                "requested_by": current_user['id']
+            }
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+# @router.get("/stats", tags=["Issues"])
+# def get_statistics(current_user: dict = Depends(get_current_user)) -> dict:
+#     """
+#     Get issue statistics for dashboard.
+#     """
+#     try:
+#         logger.info(
+#             "Issue statistics requested",
+#             extra={"requested_by": current_user["id"]}
+#         )
+        
+#         stats = DashboardService.get_issue_statistics()
+        
+#         return stats
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(
+#             "Error retrieving statistics",
+#             extra={"error": str(e), "requested_by": current_user["id"]}
+#         )
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="Failed to retrieve statistics"
+#         )
+
+@router.get("/advanced-stats", tags=["Issues"])
+def get_advanced_statistics(
+    current_user: dict = Depends(get_current_user)
+) -> dict:
+    """
+    Get advanced issue statistics including completion rates and averages.
+    """
+    try:
+        logger.info(
+            "Advanced statistics requested",
+            extra={"requested_by": current_user["id"]}
+        )
+        
+        stats = DashboardService.get_advanced_statistics()
+        
+        return stats
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error retrieving advanced statistics",
+            extra={"error": str(e), "requested_by": current_user["id"]}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve advanced statistics"
+        )
+
+@router.get("/{issue_id}/items-detailed", tags=["Issues"])
+def get_issue_items_detailed(
+    issue_id: int = Path(..., gt=0, description="The ID of the issue"),
+    current_user: dict = Depends(get_current_user)
+) -> dict:
+    """
+    Get detailed items for a specific issue with full metadata.
+    (This is an alias for /items endpoint)
+    """
+    return get_issue_items_details(issue_id, current_user)
 
 @router.post("/", response_model=IssueResponse, status_code=status.HTTP_201_CREATED)
 def create_issue(
@@ -262,3 +401,4 @@ def change_issue_status(issue_id: int = Path(..., gt=0, description="The ID of t
     except Exception as e:
         logger.error(f"Error in change_issue_status. ", extra={"error": str(e), "issue_id": issue_id})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+    

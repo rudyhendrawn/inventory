@@ -1,188 +1,561 @@
-import { useEffect, useState } from 'react';
-import { useMsal } from '@azure/msal-react';
-import { loginRequest } from '../msalConfig';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import './Dashboard.css';
 
-interface UserInfo {
+interface Issue {
+    id: number;
+    code: string;
+    status: string;
+    requested_by?: number;
+    approved_by?: number;
+    issued_at?: string;
+    note?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+interface IssueItem {
+    id: number;
+    issue_id: number;
+    item_id: number;
+    qty: number;
+    item_sku?: string;
+    item_name?: string;
+}
+
+interface Category {
     id: number;
     name: string;
-    email: string;
-    role: string;
-    active: boolean;
+}
+
+interface Unit {
+    id: number;
+    name: string;
+    symbol: string;
+}
+
+interface DashboardData {
+    issue: Issue;
+    items: IssueItem[];
+    categories: Map<number, string>;
+    units: Map<number, { name: string; symbol: string }>;
+}
+
+interface Statistics {
+    total: number;
+    status_breakdown: {
+        draft: { count: number; percentage: number };
+        approved: { count: number; percentage: number };
+        issued: { count: number; percentage: number };
+        cancelled: { count: number; percentage: number };
+    };
 }
 
 function Dashboard() {
-    const { instance, accounts } = useMsal();
-    const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
+    const { user, logout, isLoading: authLoading } = useAuth();
+    const navigate = useNavigate();
+    const [issues, setIssues] = useState<Issue[]>([]);
+    const [statistics, setStatistics] = useState<Statistics | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [statsLoading, setStatsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [tokenInfo, setTokenInfo] = useState<string | null>('');
+    const [selectedIssue, setSelectedIssue] = useState<DashboardData | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [pageSize] = useState(10);
 
-    console.log('=== Dashboard Rendered ===', {
-        accounts: accounts.length,
-        activeAccount: instance.getActiveAccount(),
-        timestampt: new Date().toISOString()
-    });
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    const token = localStorage.getItem('authToken');
 
     useEffect(() => {
-        const fetchUserInfo = async () => {
-            try {
-                if (accounts.length === 0) {
-                    console.error('❌ No accounts found');
-                    setError('No account found')
-                    setLoading(false);
-                    return
-                }
+        if (!authLoading && !user) {
+            navigate('/login');
+        }
+    }, [authLoading, user, navigate]);
 
-                const account = accounts[0];
-                console.log('Using account:', account);
+    useEffect(() => {
+        fetchIssues();
+        fetchStatistics();
+    }, [currentPage, searchTerm]);
 
-                // Acquire token silently
-                console.log('Acquiring token silently...');
-                console.log('Token request:', { ...loginRequest, account });
-                const tokenResponse = await instance.acquireTokenSilent({
-                    ...loginRequest,
-                    account: account
-                });
+    const fetchStatistics = async () => {
+        if (!token) return;
 
-                console.log('✅ Token acquired:', {
-                    tokenType: tokenResponse.tokenType,
-                    expiresOn: tokenResponse.expiresOn,
-                    scopes: tokenResponse.scopes,
-                    account: tokenResponse.account,
-                });
-                const accessToken = tokenResponse.accessToken
-                console.log('Access token (first 20 chars):', accessToken.substring(0, 20) + '...');
-                setTokenInfo(accessToken.substring(0, 50) + '...');
+        setStatsLoading(true);
 
-                // Call API's to fetch user info
-                const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/auth/me`;
-                console.log('Calling API: ', apiUrl);
-                console.log('Authorization header: ', `Bearer ${accessToken}`);
+        try {
+            const response = await fetch(`${API_BASE_URL}/issues/stats`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
 
-                const response = await fetch(apiUrl, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                console.log('API Response: ', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: Object.fromEntries(response.headers.entries())
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('❌ API Error Response:', errorText);
-                    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                const data = await response.json();
-                console.log('✅ User info received:', data);
-                setUserInfo(data);
-            } catch (err) {
-                console.error('❌ Failed to fetch user info:', err);
-                console.error('Error details:', {
-                    name: (err as Error).name,
-                    message: (err as Error).message,
-                    stack: (err as Error).stack
-                });
-                setError('Failed to fetch user info. Please try logging in again.');
-            } finally {
-                setLoading(false);
+            if (!response.ok) {
+                throw new Error('Failed to fetch statistics');
             }
-        };
 
-        fetchUserInfo();
-    } , [instance, accounts]);
-
-    const handleLogout = () => {
-        instance.logoutRedirect();
+            const data = await response.json();
+            setStatistics(data);
+        } catch (err) {
+            console.error('Error fetching statistics:', err);
+        } finally {
+            setStatsLoading(false);
+        }
     };
 
-    if (loading) {
+    const fetchIssues = async () => {
+        if (!token) return;
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const params = new URLSearchParams({
+                page: currentPage.toString(),
+                page_size: pageSize.toString(),
+                ...(searchTerm && { search: searchTerm }),
+            });
+
+            const response = await fetch(`${API_BASE_URL}/issues?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch issues');
+            }
+
+            const data = await response.json();
+            setIssues(data.issues || []);
+            setTotalPages(Math.ceil(data.total / pageSize));
+        } catch (err) {
+            setError((err as Error).message || 'Failed to load issues');
+            console.error('Error fetching issues:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fetchIssueDetails = async (issueId: number) => {
+        if (!token) return;
+
+        try {
+            // Fetch issue details
+            const issueRes = await fetch(`${API_BASE_URL}/issues/${issueId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!issueRes.ok) {
+                throw new Error('Failed to fetch issue details');
+            }
+
+            const issue = await issueRes.json();
+
+            // Fetch issue items
+            const itemsRes = await fetch(`${API_BASE_URL}/issue-items/issue/${issueId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!itemsRes.ok) {
+                throw new Error('Failed to fetch issue items');
+            }
+
+            const items = await itemsRes.json();
+
+            // Fetch categories and units
+            const categoriesRes = await fetch(`${API_BASE_URL}/categories?page=1&page_size=100`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            const unitsRes = await fetch(`${API_BASE_URL}/units?page=1&page_size=100`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            const categoriesData = await categoriesRes.json();
+            const unitsData = await unitsRes.json();
+
+            const categoriesMap = new Map(
+                (categoriesData || []).map((cat: Category) => [cat.id, cat.name])
+            );
+
+            const unitsMap = new Map(
+                (unitsData.units || []).map((unit: Unit) => [
+                    unit.id,
+                    { name: unit.name, symbol: unit.symbol },
+                ])
+            );
+
+            setSelectedIssue({
+                issue,
+                items: items || [],
+                categories: categoriesMap,
+                units: unitsMap,
+            });
+        } catch (err) {
+            setError((err as Error).message || 'Failed to load issue details');
+            console.error('Error fetching issue details:', err);
+        }
+    };
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+        setCurrentPage(1);
+    };
+
+    const handleRowClick = (issueId: number) => {
+        fetchIssueDetails(issueId);
+    };
+
+    const getStatusColor = (status: string): string => {
+        switch (status?.toUpperCase()) {
+            case 'DRAFT':
+                return 'status-draft';
+            case 'APPROVED':
+                return 'status-approved';
+            case 'ISSUED':
+                return 'status-issued';
+            case 'CANCELLED':
+                return 'status-cancelled';
+            default:
+                return 'status-default';
+        }
+    };
+
+    if (authLoading) {
         return (
-            <div style={{ textAlign: 'center', marginTop: '50px' }}>
-                <p>Loading user information...</p>
+            <div className="dashboard-loading">
+                <p>Loading...</p>
             </div>
         );
-    }   
-        
+    }
+
+    if (!user) {
+        return (
+            <div className="dashboard-error">
+                <p>No user information available</p>
+            </div>
+        );
+    }
+
     return (
-        <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            padding: '20px',
-            maxWidth: '800px',
-            margin: '0 auto'
-        }}>
-            <h1>Welcome to SGI Inventory Management System</h1>
-            <div style={{ 
-                backgroundColor: '#e3f2fd', 
-                padding: '15px', 
-                borderRadius: '5px',
-                marginBottom: '20px',
-                width: '100%',
-                fontSize: '12px',
-                fontFamily: 'monospace'
-            }}>
-                <h3>Debug Info:</h3>
-                <p><strong>Accounts:</strong> {accounts.length}</p>
-                <p><strong>Active Account:</strong> {instance.getActiveAccount()?.username}</p>
-                <p><strong>Token (preview):</strong> {tokenInfo}</p>
-                <p><strong>API URL:</strong> {import.meta.env.VITE_API_BASE_URL}/auth/me</p>
+        <div className="dashboard-container">
+            {/* Header */}
+            <div className="dashboard-header">
+                <h1>Inventory Management System</h1>
+                <button onClick={handleLogout} className="logout-button">
+                    Logout
+                </button>
             </div>
 
-            {error && (
-                <div style={{
-                    color: 'red',
-                    backgroundColor: '#ffebee',
-                    padding: '10px',
-                    borderRadius: '4px',
-                    marginBottom: '20px',
-                    width: '100%',
-                }}>
-                    {error}
+            {/* Main Content */}
+            <div className="dashboard-content">
+                {/* User Info Section */}
+                <div className="user-info-section">
+                    <h2>Welcome, {user.name}</h2>
+                    <div className="user-badge">
+                        <span className="role-badge">{user.role}</span>
+                        <span className={`status-badge ${user.active ? 'active' : 'inactive'}`}>
+                            {user.active ? 'Active' : 'Inactive'}
+                        </span>
+                    </div>
                 </div>
-            )}
 
-            {userInfo ? (
-                <div style={{
-                    backgroundColor: '#f5f5f5',
-                    padding: '20px',
-                    borderRadius: '8px',
-                    width: '100%',
-                }}>
-                    <h2>User Information</h2>
-                    <p><strong>ID:</strong> {userInfo.id}</p>
-                    <p><strong>Name:</strong> {userInfo.name}</p>
-                    <p><strong>Email:</strong> {userInfo.email}</p>
-                    <p><strong>Role:</strong> {userInfo.role}</p>
-                    <p><strong>Active:</strong> {userInfo.active ? 'Yes' : 'No'}</p>
+                {/* Statistics Section */}
+                {!statsLoading && statistics && (
+                    <div className="statistics-section">
+                        <h2>Issues Statistics</h2>
+                        <div className="stats-grid">
+                            {/* Total Issues Card */}
+                            <div className="stat-card total">
+                                <div className="stat-icon">📊</div>
+                                <div className="stat-content">
+                                    <div className="stat-label">Total Issues</div>
+                                    <div className="stat-value">{statistics.total}</div>
+                                </div>
+                            </div>
 
-                    <button
-                        onClick={handleLogout}
-                        style={{
-                            padding: '10px 20px',
-                            fontSize: '16px',
-                            backgroundColor: '#d32f2f',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            marginTop: '20px'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#b71c1c'}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#d32f2f'}
-                    >
-                        Logout
-                    </button>
+                            {/* Draft Card */}
+                            <div className="stat-card draft">
+                                <div className="stat-icon">📝</div>
+                                <div className="stat-content">
+                                    <div className="stat-label">Draft</div>
+                                    <div className="stat-value">{statistics.status_breakdown.draft.count}</div>
+                                    <div className="stat-percentage">{statistics.status_breakdown.draft.percentage}%</div>
+                                </div>
+                                <div className="progress-bar">
+                                    <div 
+                                        className="progress-fill draft-fill"
+                                        style={{ width: `${statistics.status_breakdown.draft.percentage}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+
+                            {/* Approved Card */}
+                            <div className="stat-card approved">
+                                <div className="stat-icon">✅</div>
+                                <div className="stat-content">
+                                    <div className="stat-label">Approved</div>
+                                    <div className="stat-value">{statistics.status_breakdown.approved.count}</div>
+                                    <div className="stat-percentage">{statistics.status_breakdown.approved.percentage}%</div>
+                                </div>
+                                <div className="progress-bar">
+                                    <div 
+                                        className="progress-fill approved-fill"
+                                        style={{ width: `${statistics.status_breakdown.approved.percentage}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+
+                            {/* Issued Card */}
+                            <div className="stat-card issued">
+                                <div className="stat-icon">📦</div>
+                                <div className="stat-content">
+                                    <div className="stat-label">Issued</div>
+                                    <div className="stat-value">{statistics.status_breakdown.issued.count}</div>
+                                    <div className="stat-percentage">{statistics.status_breakdown.issued.percentage}%</div>
+                                </div>
+                                <div className="progress-bar">
+                                    <div 
+                                        className="progress-fill issued-fill"
+                                        style={{ width: `${statistics.status_breakdown.issued.percentage}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+
+                            {/* Cancelled Card */}
+                            <div className="stat-card cancelled">
+                                <div className="stat-icon">❌</div>
+                                <div className="stat-content">
+                                    <div className="stat-label">Cancelled</div>
+                                    <div className="stat-value">{statistics.status_breakdown.cancelled.count}</div>
+                                    <div className="stat-percentage">{statistics.status_breakdown.cancelled.percentage}%</div>
+                                </div>
+                                <div className="progress-bar">
+                                    <div 
+                                        className="progress-fill cancelled-fill"
+                                        style={{ width: `${statistics.status_breakdown.cancelled.percentage}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Issues Section */}
+                <div className="issues-section">
+                    <div className="section-header">
+                        <h2>Issues Management</h2>
+                        <div className="search-container">
+                            <input
+                                type="text"
+                                placeholder="Search by issue code..."
+                                value={searchTerm}
+                                onChange={handleSearch}
+                                className="search-input"
+                            />
+                            <span className="search-icon">🔍</span>
+                        </div>
+                    </div>
+
+                    {error && <div className="error-message">{error}</div>}
+
+                    {isLoading ? (
+                        <div className="loading-spinner">Loading issues...</div>
+                    ) : issues.length === 0 ? (
+                        <div className="empty-state">
+                            <p>No issues found</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="table-wrapper">
+                                <table className="issues-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Issue Code</th>
+                                            <th>Status</th>
+                                            <th>Requested By</th>
+                                            <th>Approved By</th>
+                                            <th>Issued At</th>
+                                            <th>Note</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {issues.map((issue) => (
+                                            <tr
+                                                key={issue.id}
+                                                className="table-row"
+                                                onClick={() => handleRowClick(issue.id)}
+                                            >
+                                                <td className="code-cell">{issue.code}</td>
+                                                <td>
+                                                    <span className={`status-badge ${getStatusColor(issue.status)}`}>
+                                                        {issue.status}
+                                                    </span>
+                                                </td>
+                                                <td>{issue.requested_by || '-'}</td>
+                                                <td>{issue.approved_by || '-'}</td>
+                                                <td>{issue.issued_at ? new Date(issue.issued_at).toLocaleDateString() : '-'}</td>
+                                                <td className="note-cell">{issue.note || '-'}</td>
+                                                <td>
+                                                    <button
+                                                        className="view-button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/issues/${issue.id}/items`);
+                                                        }}
+                                                    >
+                                                        View Details
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination */}
+                            <div className="pagination">
+                                <button
+                                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                    disabled={currentPage === 1}
+                                    className="pagination-btn"
+                                >
+                                    ← Previous
+                                </button>
+                                <span className="pagination-info">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="pagination-btn"
+                                >
+                                    Next →
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </div>
-            ) : (
-                <p>No user information available.</p>
-            )}
 
+                {/* Issue Details Modal */}
+                {selectedIssue && (
+                    <div className="modal-overlay" onClick={() => setSelectedIssue(null)}>
+                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                            <div className="modal-header">
+                                <h2>Issue Details - {selectedIssue.issue.code}</h2>
+                                <button
+                                    className="modal-close"
+                                    onClick={() => setSelectedIssue(null)}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="modal-body">
+                                {/* Issue Info */}
+                                <div className="detail-section">
+                                    <h3>Issue Information</h3>
+                                    <div className="detail-grid">
+                                        <div className="detail-item">
+                                            <label>Code:</label>
+                                            <span>{selectedIssue.issue.code}</span>
+                                        </div>
+                                        <div className="detail-item">
+                                            <label>Status:</label>
+                                            <span className={`status-badge ${getStatusColor(selectedIssue.issue.status)}`}>
+                                                {selectedIssue.issue.status}
+                                            </span>
+                                        </div>
+                                        <div className="detail-item">
+                                            <label>Requested By:</label>
+                                            <span>{selectedIssue.issue.requested_by || '-'}</span>
+                                        </div>
+                                        <div className="detail-item">
+                                            <label>Approved By:</label>
+                                            <span>{selectedIssue.issue.approved_by || '-'}</span>
+                                        </div>
+                                        <div className="detail-item">
+                                            <label>Issued At:</label>
+                                            <span>
+                                                {selectedIssue.issue.issued_at
+                                                    ? new Date(selectedIssue.issue.issued_at).toLocaleString()
+                                                    : '-'}
+                                            </span>
+                                        </div>
+                                        <div className="detail-item">
+                                            <label>Note:</label>
+                                            <span>{selectedIssue.issue.note || '-'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Issue Items Table */}
+                                <div className="detail-section">
+                                    <h3>Issue Items ({selectedIssue.items.length})</h3>
+                                    {selectedIssue.items.length === 0 ? (
+                                        <p className="empty-state">No items in this issue</p>
+                                    ) : (
+                                        <div className="table-wrapper">
+                                            <table className="details-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>SKU</th>
+                                                        <th>Item Name</th>
+                                                        <th>Quantity</th>
+                                                        <th>Unit</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {selectedIssue.items.map((item) => (
+                                                        <tr key={item.id}>
+                                                            <td>{item.item_sku || '-'}</td>
+                                                            <td>{item.item_name || '-'}</td>
+                                                            <td>{item.qty ? parseFloat(item.qty.toString()).toFixed(1) : '0.0'}</td>
+                                                            <td>{'-'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="modal-footer">
+                                <button
+                                    className="btn-close"
+                                    onClick={() => setSelectedIssue(null)}
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

@@ -76,7 +76,7 @@ def get_user(
             detail=str(e)
         )
 
-@router.post("/", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.post("/register", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def create_user(
     user_data: UserCreate,
     current_user=Depends(require_role(UserRole.ADMIN))
@@ -103,6 +103,8 @@ def create_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
 
 @router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def update_user(
