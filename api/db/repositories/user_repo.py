@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict, Any
-from db.pool import fetch_all, fetch_one, execute
+from db.pool import fetch_all, fetch_one, execute, execute_many
 from schemas.users import UserCreate, UserUpdate
 from datetime import datetime, timezone
 
@@ -182,6 +182,39 @@ class UserRepository:
             
             # Alternative: get by unique identifier if ID not returned
             return UserRepository.get_by_email(user_data.email.lower())
+        except Exception as e:
+            raise RuntimeError({str(e)})
+
+    @staticmethod
+    def create_bulk(users_data: List[UserCreate], password_hashes: List[str]) -> List[Dict[str, Any]]:
+        """
+        Create multiple users in bulk
+        """
+        try:
+            query = """
+                INSERT INTO users (email, password_hash, name, role, active, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+            params = []
+            for user_data, password_hash in zip(users_data, password_hashes):
+                params.append((
+                    user_data.email.lower(),
+                    password_hash,
+                    user_data.name,
+                    user_data.role.value,
+                    user_data.active,
+                    datetime.now(timezone.utc)
+                ))
+            
+            execute_many(query, params)
+
+            created_users = []
+            for user_data in users_data:
+                user = UserRepository.get_by_email(user_data.email.lower())
+                if user:
+                    created_users.append(user)
+            
+            return created_users
         except Exception as e:
             raise RuntimeError({str(e)})
 

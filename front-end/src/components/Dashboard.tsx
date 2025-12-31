@@ -35,6 +35,13 @@ interface IssueItem {
     qty: number;
     item_sku?: string;
     item_name?: string;
+    category_id?: number;
+    category_name?: { id: number; name: string };
+    unit_id?: number;
+    unit_name?: string;
+    unit_symbol?: string;
+    description?: string;
+    active?: boolean;
 }
 
 interface User {
@@ -42,10 +49,10 @@ interface User {
     name: string;
 }
 
-interface Category {
-    id: number;
-    name: string;
-}
+// interface Category {
+//     id: number;
+//     name: string;
+// }
 
 interface Unit {
     id: number;
@@ -175,7 +182,7 @@ function Dashboard() {
                 throw new Error('Failed to fetch issue details');
             }
 
-            const issue = await issueRes.json();
+            const issueData = await issueRes.json();
 
             // Fetch issue items
             const itemsRes = await fetch(`${API_BASE_URL}/issue-items/issue/${issueId}`, {
@@ -189,7 +196,7 @@ function Dashboard() {
                 throw new Error('Failed to fetch issue items');
             }
 
-            const items = await itemsRes.json();
+            const itemsData = await itemsRes.json();
 
             // Fetch categories and units
             const categoriesRes = await fetch(`${API_BASE_URL}/categories?page=1&page_size=100`, {
@@ -209,11 +216,11 @@ function Dashboard() {
             const categoriesData = await categoriesRes.json();
             const unitsData = await unitsRes.json();
 
-            const categoriesMap = new Map(
-                (categoriesData || []).map((cat: Category) => [cat.id, cat.name])
-            );
+            // const categoriesMap = new Map<number, string>(
+            //     (categoriesData || []).map((cat: Category) => [cat.id, cat.name])
+            // );
 
-            const unitsMap = new Map(
+            const unitsMap = new Map<number, { name: string; symbol: string }>(
                 (unitsData.units || []).map((unit: Unit) => [
                     unit.id,
                     { name: unit.name, symbol: unit.symbol },
@@ -221,9 +228,9 @@ function Dashboard() {
             );
 
             setSelectedIssue({
-                issue,
-                items: items || [],
-                categories: categoriesMap,
+                issue: issueData.issue,
+                items: itemsData.items || [],
+                categories: categoriesData,
                 units: unitsMap,
             });
         } catch (err) {
@@ -301,235 +308,222 @@ function Dashboard() {
         );
     }
 
-     return (
-        <div className="bg-light" style={{ minHeight: '100vh' }}>
-            {/* Header */}
-            <nav className="navbar navbar-dark bg-dark shadow-sm">
-                <Container fluid className="px-4">
-                    <span className="navbar-brand mb-0 h1">📦 Inventory Management System</span>
-                    <Button variant="danger" size="sm" onClick={handleLogout}>
-                        <i className="bi bi-box-arrow-right"></i> Logout
-                    </Button>
-                </Container>
-            </nav>
-
-            {/* Main Content */}
-            <Container className="py-4" fluid="lg">
-                {/* User Info Card */}
-                <Card className="mb-4 card-shadow">
-                    <Card.Body>
-                        <h5 className="mb-3">Welcome, <strong>{user.name}</strong></h5>
-                        <div>
-                            <Badge bg="primary" className="me-2">{user.role}</Badge>
-                            <Badge bg={user.active ? 'success' : 'danger'}>
-                                {user.active ? 'Active' : 'Inactive'}
-                            </Badge>
-                        </div>
-                    </Card.Body>
-                </Card>
-
-                {/* Statistics Section */}
-                {!statsLoading && statistics && (
-                    <div className="mb-4">
-                        <h4 className="mb-3">Issues Statistics</h4>
-                        <Row className="g-3">
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card total h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">📊</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Total Issues</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.total}</div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card draft h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">📝</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Draft</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.status_breakdown.draft.count}</div>
-                                        <div className="small text-muted mt-2">{statistics.status_breakdown.draft.percentage}%</div>
-                                        <div className="progress mt-2" style={{ height: '4px' }}>
-                                            <div className="progress-bar bg-warning" style={{ width: `${statistics.status_breakdown.draft.percentage}%` }}></div>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card approved h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">✅</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Approved</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.status_breakdown.approved.count}</div>
-                                        <div className="small text-muted mt-2">{statistics.status_breakdown.approved.percentage}%</div>
-                                        <div className="progress mt-2" style={{ height: '4px' }}>
-                                            <div className="progress-bar bg-info" style={{ width: `${statistics.status_breakdown.approved.percentage}%` }}></div>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card issued h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">📦</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Issued</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.status_breakdown.issued.count}</div>
-                                        <div className="small text-muted mt-2">{statistics.status_breakdown.issued.percentage}%</div>
-                                        <div className="progress mt-2" style={{ height: '4px' }}>
-                                            <div className="progress-bar bg-success" style={{ width: `${statistics.status_breakdown.issued.percentage}%` }}></div>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card cancelled h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">❌</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Cancelled</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.status_breakdown.cancelled.count}</div>
-                                        <div className="small text-muted mt-2">{statistics.status_breakdown.cancelled.percentage}%</div>
-                                        <div className="progress mt-2" style={{ height: '4px' }}>
-                                            <div className="progress-bar bg-secondary" style={{ width: `${statistics.status_breakdown.cancelled.percentage}%` }}></div>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                        </Row>
+    return (
+        <Container className="py-4" fluid>
+            {/* User Info Card */}
+            <Card className="mb-4 card-shadow">
+                <Card.Body>
+                    <h5 className="mb-3">Welcome, <strong>{user.name}</strong></h5>
+                    <div>
+                        <Badge bg="primary" className="me-2">{user.role}</Badge>
+                        <Badge bg={user.active ? 'success' : 'danger'}>
+                            {user.active ? 'Active' : 'Inactive'}
+                        </Badge>
                     </div>
-                )}
+                </Card.Body>
+            </Card>
 
-                {/* Issues Section */}
-                <Card className="card-shadow">
-                    <Card.Header className="bg-white border-bottom">
-                        <Row className="g-3 align-items-center">
-                            <Col md={6}>
-                                <h5 className="mb-0">Issues Management</h5>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-0">
-                                    <Form.Control
-                                        placeholder="Search by issue code..."
-                                        value={searchTerm}
-                                        onChange={handleSearch}
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
-                    </Card.Header>
+            {/* Statistics Section */}
+            {!statsLoading && statistics && (
+                <div className="mb-4">
+                    <h4 className="mb-3">Issues Statistics</h4>
+                    <Row className="g-3">
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card total h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">📊</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Total Issues</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.total}</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card draft h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">📝</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Draft</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.status_breakdown.draft.count}</div>
+                                    <div className="small text-muted mt-2">{statistics.status_breakdown.draft.percentage}%</div>
+                                    <div className="progress mt-2" style={{ height: '4px' }}>
+                                        <div className="progress-bar bg-warning" style={{ width: `${statistics.status_breakdown.draft.percentage}%` }}></div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card approved h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">✅</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Approved</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.status_breakdown.approved.count}</div>
+                                    <div className="small text-muted mt-2">{statistics.status_breakdown.approved.percentage}%</div>
+                                    <div className="progress mt-2" style={{ height: '4px' }}>
+                                        <div className="progress-bar bg-info" style={{ width: `${statistics.status_breakdown.approved.percentage}%` }}></div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card issued h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">📦</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Issued</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.status_breakdown.issued.count}</div>
+                                    <div className="small text-muted mt-2">{statistics.status_breakdown.issued.percentage}%</div>
+                                    <div className="progress mt-2" style={{ height: '4px' }}>
+                                        <div className="progress-bar bg-success" style={{ width: `${statistics.status_breakdown.issued.percentage}%` }}></div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card cancelled h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">❌</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Cancelled</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.status_breakdown.cancelled.count}</div>
+                                    <div className="small text-muted mt-2">{statistics.status_breakdown.cancelled.percentage}%</div>
+                                    <div className="progress mt-2" style={{ height: '4px' }}>
+                                        <div className="progress-bar bg-secondary" style={{ width: `${statistics.status_breakdown.cancelled.percentage}%` }}></div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    </Row>
+                </div>
+            )}
 
-                    <Card.Body>
-                        {error && <Alert variant="danger" onClose={() => setError(null)} dismissible>{error}</Alert>}
+            {/* Issues Section */}
+            <Card className="card-shadow">
+                <Card.Header className="bg-white border-bottom">
+                    <Row className="g-3 align-items-center">
+                        <Col md={6}>
+                            <h5 className="mb-0">Issues Management</h5>
+                        </Col>
+                        <Col md={6}>
+                            <Form.Group className="mb-0">
+                                <Form.Control
+                                    placeholder="Search by issue code..."
+                                    value={searchTerm}
+                                    onChange={handleSearch}
+                                />
+                            </Form.Group>
+                        </Col>
+                    </Row>
+                </Card.Header>
 
-                        {isLoading ? (
-                            <div className="text-center py-4">
-                                <Spinner animation="border" role="status" className="me-2" />
-                                <span>Loading issues...</span>
-                            </div>
-                        ) : issues.length === 0 ? (
-                            <div className="text-center text-muted py-4">
-                                <p>No issues found</p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="table-responsive">
-                                    <Table hover bordered>
-                                        <thead className="table-light">
-                                            <tr>
-                                                <th>Issue Code</th>
-                                                <th>Status</th>
-                                                <th>Requested By</th>
-                                                <th>Approved By</th>
-                                                <th>Issued At</th>
-                                                <th>Note</th>
-                                                <th>Actions</th>
+                <Card.Body>
+                    {error && <Alert variant="danger" onClose={() => setError(null)} dismissible>{error}</Alert>}
+
+                    {isLoading ? (
+                        <div className="text-center py-4">
+                            <Spinner animation="border" role="status" className="me-2" />
+                            <span>Loading issues...</span>
+                        </div>
+                    ) : issues.length === 0 ? (
+                        <div className="text-center text-muted py-4">
+                            <p>No issues found</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="table-responsive">
+                                <Table hover bordered>
+                                    <thead className="table-light">
+                                        <tr>
+                                            <th>Issue Code</th>
+                                            <th>Status</th>
+                                            <th>Requested By</th>
+                                            <th>Approved By</th>
+                                            <th>Issued At</th>
+                                            <th>Note</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {issues.map((issue) => (
+                                            <tr
+                                                key={issue.id}
+                                                onClick={() => handleRowClick(issue.id)}
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                <td>
+                                                    <code>{issue.code}</code>
+                                                </td>
+                                                <td>
+                                                    <Badge bg={getStatusColor(issue.status)}>
+                                                        {issue.status}
+                                                    </Badge>
+                                                </td>
+                                                <td>
+                                                    {issue.requested_by ? (
+                                                        <UserName userId={issue.requested_by} fetchUserData={fetchUserData} />
+                                                    ) : (
+                                                        '-'
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {issue.approved_by ? (
+                                                        <UserName userId={issue.approved_by} fetchUserData={fetchUserData} />
+                                                    ) : (
+                                                        '-'
+                                                    )}
+                                                </td>
+                                                <td>{issue.issued_at ? new Date(issue.issued_at).toLocaleDateString() : '-'}</td>
+                                                <td className="text-truncate" style={{ maxWidth: '200px' }}>
+                                                    {issue.note || '-'}
+                                                </td>
+                                                <td>
+                                                    <Button
+                                                        variant="primary"
+                                                        size="sm"
+                                                        onClick={(e) => { e.stopPropagation(); navigate(`/issues/${issue.id}/items`); }}
+                                                    >
+                                                        <i className="bi bi-eye"></i> View Details
+                                                    </Button>
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {issues.map((issue) => (
-                                                <tr
-                                                    key={issue.id}
-                                                    onClick={() => handleRowClick(issue.id)}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <td>
-                                                        <code>{issue.code}</code>
-                                                    </td>
-                                                    <td>
-                                                        <Badge bg={getStatusColor(issue.status)}>
-                                                            {issue.status}
-                                                        </Badge>
-                                                    </td>
-                                                    <td>
-                                                        {issue.requested_by ? (
-                                                            <UserName userId={issue.requested_by} fetchUserData={fetchUserData} />
-                                                        ) : (
-                                                            '-'
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        {issue.approved_by ? (
-                                                            <UserName userId={issue.approved_by} fetchUserData={fetchUserData} />
-                                                        ) : (
-                                                            '-'
-                                                        )}
-                                                    </td>
-                                                    <td>{issue.issued_at ? new Date(issue.issued_at).toLocaleDateString() : '-'}</td>
-                                                    <td className="text-truncate" style={{ maxWidth: '200px' }}>
-                                                        {issue.note || '-'}
-                                                    </td>
-                                                    <td>
-                                                        <Button
-                                                            variant="primary"
-                                                            size="sm"
-                                                            onClick={(e) => { e.stopPropagation(); navigate(`/issues/${issue.id}/items`); }}
-                                                        >
-                                                            <i className="bi bi-eye"></i> View
-                                                        </Button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </Table>
-                                </div>
+                                        ))}
+                                    </tbody>
+                                </Table>
+                            </div>
 
-                                {/* Pagination */}
-                                <nav className="mt-4" aria-label="Page navigation">
-                                    <Pagination className="justify-content-center">
-                                        <Pagination.First
-                                            onClick={() => setCurrentPage(1)}
-                                            disabled={currentPage === 1}
-                                        />
-                                        <Pagination.Prev
-                                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                                            disabled={currentPage === 1}
-                                        />
-                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                            const pageNum = currentPage > 2 ? currentPage - 2 + i : i + 1;
-                                            return (
-                                                <Pagination.Item
-                                                    key={pageNum}
-                                                    active={pageNum === currentPage}
-                                                    onClick={() => setCurrentPage(pageNum)}
-                                                >
-                                                    {pageNum}
-                                                </Pagination.Item>
-                                            );
-                                        })}
-                                        <Pagination.Next
-                                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                                            disabled={currentPage === totalPages}
-                                        />
-                                        <Pagination.Last
-                                            onClick={() => setCurrentPage(totalPages)}
-                                            disabled={currentPage === totalPages}
-                                        />
-                                    </Pagination>
-                                </nav>
-                            </>
-                        )}
-                    </Card.Body>
-                </Card>
-            </Container>
+                            {/* Pagination */}
+                            <nav className="mt-4" aria-label="Page navigation">
+                                <Pagination className="justify-content-center">
+                                    <Pagination.First
+                                        onClick={() => setCurrentPage(1)}
+                                        disabled={currentPage === 1}
+                                    />
+                                    <Pagination.Prev
+                                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                        disabled={currentPage === 1}
+                                    />
+                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                        const pageNum = currentPage > 2 ? currentPage - 2 + i : i + 1;
+                                        return (
+                                            <Pagination.Item
+                                                key={pageNum}
+                                                active={pageNum === currentPage}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                            >
+                                                {pageNum}
+                                            </Pagination.Item>
+                                        );
+                                    })}
+                                    <Pagination.Next
+                                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                        disabled={currentPage === totalPages}
+                                    />
+                                    <Pagination.Last
+                                        onClick={() => setCurrentPage(totalPages)}
+                                        disabled={currentPage === totalPages}
+                                    />
+                                </Pagination>
+                            </nav>
+                        </>
+                    )}
+                </Card.Body>
+            </Card>
 
             {/* Modal */}
             <Modal show={!!selectedIssue} onHide={() => setSelectedIssue(null)} size="lg">
@@ -603,6 +597,7 @@ function Dashboard() {
                                                     <td><code>{item.item_sku || '-'}</code></td>
                                                     <td>{item.item_name || '-'}</td>
                                                     <td>{item.qty ? parseFloat(item.qty.toString()).toFixed(1) : '0.0'}</td>
+                                                    <td>{item.unit_name || '-'}</td>
                                                     <td>-</td>
                                                 </tr>
                                             ))}
@@ -619,7 +614,7 @@ function Dashboard() {
                     </>
                 )}
             </Modal>
-        </div>
+        </Container>
     );
 }
 

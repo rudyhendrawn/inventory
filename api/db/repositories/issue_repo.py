@@ -235,7 +235,7 @@ class IssueRepository:
             if search:
                 where_conditions.append("(code LIKE %s OR status LIKE %s)")
                 search_param = f"%{search}%"
-                params.extend([search_param, search_param, search_param])
+                params.extend([search_param, search_param])
 
             if status_filter:
                 where_conditions.append("status = %s")
