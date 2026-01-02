@@ -55,9 +55,16 @@ class ItemUpdate(BaseModel):
     
 class ItemResponse(BaseModel):
     id: int
-    owner_user_id: Optional[int] = None
-    created_at: Optional[datetime] = None
+    sku: str
+    name: str
+    category_id: Optional[int] = None
     unit_id: Optional[int] = None
+    owner_user_id: Optional[int] = None
+    barcode: Optional[str] = None
+    min_stock: float = 0.0
+    image_url: Optional[str] = None
+    active: bool = True
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

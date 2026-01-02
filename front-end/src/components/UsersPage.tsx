@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -11,7 +11,6 @@ import {
     Form,
     Badge,
     Spinner,
-    Alert,
     Pagination,
     Modal
 } from 'react-bootstrap';
@@ -36,16 +35,26 @@ function UsersPage() {
     const { user: currentUser, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [users, setUsers] = useState<User[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [activeOnly, setActiveOnly] = useState(true);
+    const [searchTerm, ] = useState('');
+    const [activeOnly, ] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [, setError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalUsers, setTotalUsers] = useState(0);
     const [pageSize] = useState(10);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [showModal, setShowModal] = useState(false);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof User; direction: 'asc' | 'desc' } | null>(null);
+    const [filters, setFilters] = useState({
+        id: '',
+        name: '',
+        email: '',
+        role: 'all',
+        status: 'all',
+        createdFrom: '',
+        createdTo: '',
+    });
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
@@ -100,19 +109,31 @@ function UsersPage() {
         }
     };
 
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value);
-        setCurrentPage(1);
-    };
-
-    const handleActiveFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setActiveOnly(e.target.checked);
-        setCurrentPage(1);
-    };
-
     const handleRowClick = (user: User) => {
         setSelectedUser(user);
         setShowModal(true);
+    };
+
+    const handleDeleteUser = async (userId: number) => {
+        if (!token) return;
+        if (!window.confirm('Delete this user?')) return;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to delete user');
+            }
+            fetchUsers();
+        } catch (err) {
+            setError((err as Error).message || 'Failed to delete user');
+        }
     };
 
     const getRoleBadgeColor = (role: string): 'primary' | 'success' | 'info' => {
@@ -127,6 +148,74 @@ function UsersPage() {
                 return 'info';
         }
     };
+
+    const handleSort = (key: keyof User) => {
+        setSortConfig((prev) => {
+            if (prev?.key === key) {
+                return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'asc' };
+        });
+    };
+
+    const getSortIndicator = (key: keyof User) => {
+        if (sortConfig?.key !== key) return '';
+        return sortConfig.direction === 'asc' ? '^' : 'v';
+    };
+
+    const filteredUsers = useMemo(() => {
+        return users.filter((user) => {
+            if (filters.id && !String(user.id).includes(filters.id)) return false;
+            if (filters.name && !user.name.toLowerCase().includes(filters.name.toLowerCase())) return false;
+            if (filters.email && !user.email.toLowerCase().includes(filters.email.toLowerCase())) return false;
+            if (filters.role !== 'all' && user.role !== filters.role) return false;
+            if (filters.status !== 'all') {
+                const isActive = Boolean(user.active);
+                if (filters.status === 'active' && !isActive) return false;
+                if (filters.status === 'inactive' && isActive) return false;
+            }
+            const createdDate = new Date(user.created_at);
+            if (filters.createdFrom) {
+                const from = new Date(filters.createdFrom);
+                if (!Number.isNaN(from.getTime()) && createdDate < from) return false;
+            }
+            if (filters.createdTo) {
+                const to = new Date(filters.createdTo);
+                if (!Number.isNaN(to.getTime())) {
+                    to.setHours(23, 59, 59, 999);
+                    if (createdDate > to) return false;
+                }
+            }
+            return true;
+        });
+    }, [users, filters]);
+
+    const sortedUsers = useMemo(() => {
+        if (!sortConfig) return filteredUsers;
+        const data = [...filteredUsers];
+        data.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+            let result = 0;
+            if (sortConfig.key === 'created_at') {
+                const aDate = new Date(aValue as string).getTime();
+                const bDate = new Date(bValue as string).getTime();
+                result = aDate - bDate;
+            } else if (aValue == null && bValue == null) {
+                result = 0;
+            } else if (aValue == null) {
+                result = 1;
+            } else if (bValue == null) {
+                result = -1;
+            } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+                result = aValue - bValue;
+            } else {
+                result = String(aValue).localeCompare(String(bValue));
+            }
+            return sortConfig.direction === 'asc' ? result : -result;
+        });
+        return data;
+    }, [filteredUsers, sortConfig]);
 
     if (authLoading || isLoading) {
         return (
@@ -152,7 +241,7 @@ function UsersPage() {
                     </Col>
                     {currentUser?.role === 'ADMIN' && (
                         <Col xs="auto">
-                            <Button variant="primary">
+                            <Button variant="primary" onClick={() => navigate('/users/new')}>
                                 <i className="bi bi-plus-circle me-2"></i>
                                 Add User
                             </Button>
@@ -160,51 +249,17 @@ function UsersPage() {
                     )}
                 </Row>
 
-                {/* Filters */}
-                <Card className="mb-4 shadow-sm">
-                    <Card.Body>
-                        <Row className="g-3">
-                            <Col md={6}>
-                                <Form.Group>
-                                    <Form.Label>Search</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        placeholder="Search by name or email..."
-                                        value={searchTerm}
-                                        onChange={handleSearch}
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6} className="d-flex align-items-end">
-                                <Form.Check
-                                    type="checkbox"
-                                    id="active-filter"
-                                    label="Show active users only"
-                                    checked={activeOnly}
-                                    onChange={handleActiveFilterChange}
-                                />
-                            </Col>
-                        </Row>
-                    </Card.Body>
-                </Card>
-
-                {error && (
-                    <Alert variant="danger" dismissible onClose={() => setError(null)}>
-                        {error}
-                    </Alert>
-                )}
-
                 {/* Users Table */}
                 <Card className="shadow-sm">
                     <Card.Header className="bg-white border-bottom">
                         <Row className="align-items-center">
-                            <Col>
-                                <h5 className="mb-0">
-                                    Users ({totalUsers})
-                                </h5>
-                            </Col>
-                        </Row>
-                    </Card.Header>
+                                    <Col>
+                                        <h5 className="mb-0">
+                                            Users ({filteredUsers.length} / {totalUsers})
+                                        </h5>
+                                    </Col>
+                                </Row>
+                            </Card.Header>
                     <Card.Body className="p-0">
                         {users.length === 0 ? (
                             <div className="text-center text-muted py-5">
@@ -216,17 +271,95 @@ function UsersPage() {
                                 <Table hover className="mb-0">
                                     <thead className="table-light">
                                         <tr>
-                                            <th>ID</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>Role</th>
-                                            <th>Status</th>
-                                            <th>Created At</th>
+                                            <th onClick={() => handleSort('id')} style={{ cursor: 'pointer' }}>
+                                                ID {getSortIndicator('id')}
+                                            </th>
+                                            <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+                                                Name {getSortIndicator('name')}
+                                            </th>
+                                            <th onClick={() => handleSort('email')} style={{ cursor: 'pointer' }}>
+                                                Email {getSortIndicator('email')}
+                                            </th>
+                                            <th onClick={() => handleSort('role')} style={{ cursor: 'pointer' }}>
+                                                Role {getSortIndicator('role')}
+                                            </th>
+                                            <th onClick={() => handleSort('active')} style={{ cursor: 'pointer' }}>
+                                                Status {getSortIndicator('active')}
+                                            </th>
+                                            <th onClick={() => handleSort('created_at')} style={{ cursor: 'pointer' }}>
+                                                Created At {getSortIndicator('created_at')}
+                                            </th>
                                             <th>Actions</th>
+                                        </tr>
+                                        <tr>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="ID"
+                                                    value={filters.id}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, id: e.target.value }))}
+                                                />
+                                            </th>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="Name"
+                                                    value={filters.name}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
+                                                />
+                                            </th>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="Email"
+                                                    value={filters.email}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, email: e.target.value }))}
+                                                />
+                                            </th>
+                                            <th>
+                                                <Form.Select
+                                                    size="sm"
+                                                    value={filters.role}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, role: e.target.value }))}
+                                                >
+                                                    <option value="all">All</option>
+                                                    <option value="ADMIN">ADMIN</option>
+                                                    <option value="STAFF">STAFF</option>
+                                                    <option value="AUDITOR">AUDITOR</option>
+                                                </Form.Select>
+                                            </th>
+                                            <th>
+                                                <Form.Select
+                                                    size="sm"
+                                                    value={filters.status}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+                                                >
+                                                    <option value="all">All</option>
+                                                    <option value="active">Active</option>
+                                                    <option value="inactive">Inactive</option>
+                                                </Form.Select>
+                                            </th>
+                                            <th>
+                                                <div className="d-flex gap-1">
+                                                    <Form.Control
+                                                        size="sm"
+                                                        type="date"
+                                                        value={filters.createdFrom}
+                                                        onChange={(e) => setFilters((prev) => ({ ...prev, createdFrom: e.target.value }))}
+                                                    />
+                                                    <Form.Control
+                                                        size="sm"
+                                                        type="date"
+                                                        value={filters.createdTo}
+                                                        onChange={(e) => setFilters((prev) => ({ ...prev, createdTo: e.target.value }))}
+                                                    />
+                                                </div>
+                                            </th>
+                                            <th></th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {users.map((user) => (
+                                        {sortedUsers.map((user) => (
                                             <tr
                                                 key={user.id}
                                                 style={{ cursor: 'pointer' }}
@@ -257,14 +390,18 @@ function UsersPage() {
                                                                 variant="outline-primary"
                                                                 size="sm"
                                                                 className="me-2"
+                                                                onClick={() => navigate(`/users/${user.id}/edit`)}
                                                             >
-                                                                <i className="bi bi-pencil"></i>
+                                                                <i className="bi bi-pencil me-1"></i>
+                                                                Edit
                                                             </Button>
                                                             <Button
                                                                 variant="outline-danger"
                                                                 size="sm"
+                                                                onClick={() => handleDeleteUser(user.id)}
                                                             >
-                                                                <i className="bi bi-trash"></i>
+                                                                <i className="bi bi-trash me-1"></i>
+                                                                Delete
                                                             </Button>
                                                         </>
                                                     )}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -90,6 +90,16 @@ function Dashboard() {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [pageSize] = useState(10);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Issue; direction: 'asc' | 'desc' } | null>(null);
+    const [userNameMap, setUserNameMap] = useState<Record<number, string>>({});
+    const [filters, setFilters] = useState({
+        status: 'all',
+        requestedBy: '',
+        approvedBy: '',
+        issuedFrom: '',
+        issuedTo: '',
+        note: '',
+    });
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
@@ -100,12 +110,62 @@ function Dashboard() {
         }
     }, [authLoading, user, navigate]);
 
-    useEffect(() => {
-        fetchIssues();
-        fetchStatistics();
-    }, [currentPage, searchTerm]);
+    const fetchUserData = useCallback(async (userId: number): Promise<User | null> => {
+        if (!token) return null;
+        try {
+            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
 
-    const fetchStatistics = async () => {
+            if (!response.ok) {
+                    throw new Error('Failed to fetch user data');
+                }
+
+                const data = await response.json();
+                return data;
+        } catch (err) {
+            console.error('Error fetching user data:', err);
+            return null;
+        }
+    }, [token, API_BASE_URL]);
+
+    useEffect(() => {
+        const userIds = new Set<number>();
+        issues.forEach((issue) => {
+            if (issue.requested_by) userIds.add(issue.requested_by);
+            if (issue.approved_by) userIds.add(issue.approved_by);
+        });
+
+        const missingIds = Array.from(userIds).filter((id) => !userNameMap[id]);
+        if (missingIds.length === 0) return;
+
+        let mounted = true;
+        (async () => {
+            const entries = await Promise.all(
+                missingIds.map(async (id) => {
+                    const user = await fetchUserData(id);
+                    return [id, user?.name || ''] as const;
+                })
+            );
+            if (!mounted) return;
+            setUserNameMap((prev) => {
+                const next = { ...prev };
+                entries.forEach(([id, name]) => {
+                    next[id] = name;
+                });
+                return next;
+            });
+        })();
+
+        return () => {
+            mounted = false;
+        };
+    }, [issues, userNameMap, fetchUserData]);
+
+    const fetchStatistics = useCallback(async () => {
         if (!token) return;
 
         setStatsLoading(true);
@@ -129,9 +189,9 @@ function Dashboard() {
         } finally {
             setStatsLoading(false);
         }
-    };
+    }, [token, API_BASE_URL]);
 
-    const fetchIssues = async () => {
+    const fetchIssues = useCallback(async () => {
         if (!token) return;
 
         setIsLoading(true);
@@ -164,7 +224,34 @@ function Dashboard() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [token, API_BASE_URL, currentPage, pageSize, searchTerm]);
+
+    const handleDeleteIssue = useCallback(async (issueId: number) => {
+        if (!token) return;
+        if (!window.confirm('Delete this issue?')) return;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/issues/${issueId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to delete issue');
+            }
+            fetchIssues();
+        } catch (err) {
+            setError((err as Error).message || 'Failed to delete issue');
+        }
+    }, [API_BASE_URL, fetchIssues, token]);
+
+    useEffect(() => {
+        fetchIssues();
+        fetchStatistics();
+    }, [currentPage, searchTerm, fetchIssues, fetchStatistics]);
 
     const fetchIssueDetails = async (issueId: number) => {
         if (!token) return;
@@ -227,9 +314,12 @@ function Dashboard() {
                 ])
             );
 
+            const issue = issueData.issue ?? issueData;
+            const items = Array.isArray(itemsData) ? itemsData : (itemsData.items || []);
+
             setSelectedIssue({
-                issue: issueData.issue,
-                items: itemsData.items || [],
+                issue,
+                items,
                 categories: categoriesData,
                 units: unitsMap,
             });
@@ -239,32 +329,93 @@ function Dashboard() {
         }
     };
 
-    const fetchUserData = async (userId: number): Promise<User | null> => {
-        if (!token) return null;
-        try {
-            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+    const handleSort = (key: keyof Issue) => {
+        setSortConfig((prev) => {
+            if (prev?.key === key) {
+                return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'asc' };
+        });
+    };
 
-            if (!response.ok) {
-                    throw new Error('Failed to fetch user data');
+    const getSortIndicator = (key: keyof Issue) => {
+        if (sortConfig?.key !== key) return '';
+        return sortConfig.direction === 'asc' ? '^' : 'v';
+    };
+
+    const filteredIssues = useMemo(() => {
+        return issues.filter((issue) => {
+            if (searchTerm && !issue.code.toLowerCase().includes(searchTerm.toLowerCase())) {
+                return false;
+            }
+            if (filters.status !== 'all') {
+                const issueStatus = (issue.status || '').toUpperCase();
+                const filterStatus = filters.status.toUpperCase();
+                if (issueStatus !== filterStatus) {
+                    return false;
                 }
+            }
+            if (filters.requestedBy) {
+                const requestedName = issue.requested_by ? (userNameMap[issue.requested_by] || '') : '';
+                if (!requestedName.toLowerCase().includes(filters.requestedBy.toLowerCase())) {
+                    return false;
+                }
+            }
+            if (filters.approvedBy) {
+                const approvedName = issue.approved_by ? (userNameMap[issue.approved_by] || '') : '';
+                if (!approvedName.toLowerCase().includes(filters.approvedBy.toLowerCase())) {
+                    return false;
+                }
+            }
+            if (filters.note && !(issue.note ?? '').toLowerCase().includes(filters.note.toLowerCase())) {
+                return false;
+            }
+            if (filters.issuedFrom || filters.issuedTo) {
+                const issuedDate = issue.issued_at ? new Date(issue.issued_at) : null;
+                if (filters.issuedFrom) {
+                    const from = new Date(filters.issuedFrom);
+                    if (issuedDate && issuedDate < from) return false;
+                    if (!issuedDate) return false;
+                }
+                if (filters.issuedTo) {
+                    const to = new Date(filters.issuedTo);
+                    if (!Number.isNaN(to.getTime())) {
+                        to.setHours(23, 59, 59, 999);
+                        if (issuedDate && issuedDate > to) return false;
+                        if (!issuedDate) return false;
+                    }
+                }
+            }
+            return true;
+        });
+    }, [issues, searchTerm, filters]);
 
-                const data = await response.json();
-                return data;
-        } catch (err) {
-            console.error('Error fetching user data:', err);
-            return null;
-        }
-    };
-
-    const handleLogout = () => {
-        logout();
-        navigate('/login');
-    };
+    const sortedIssues = useMemo(() => {
+        if (!sortConfig) return filteredIssues;
+        const data = [...filteredIssues];
+        data.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+            let result = 0;
+            if (sortConfig.key === 'issued_at') {
+                const aDate = aValue ? new Date(aValue as string).getTime() : 0;
+                const bDate = bValue ? new Date(bValue as string).getTime() : 0;
+                result = aDate - bDate;
+            } else if (aValue == null && bValue == null) {
+                result = 0;
+            } else if (aValue == null) {
+                result = 1;
+            } else if (bValue == null) {
+                result = -1;
+            } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+                result = aValue - bValue;
+            } else {
+                result = String(aValue).localeCompare(String(bValue));
+            }
+            return sortConfig.direction === 'asc' ? result : -result;
+        });
+        return data;
+    }, [filteredIssues, sortConfig]);
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
@@ -400,14 +551,13 @@ function Dashboard() {
                         <Col md={6}>
                             <h5 className="mb-0">Issues Management</h5>
                         </Col>
-                        <Col md={6}>
-                            <Form.Group className="mb-0">
-                                <Form.Control
-                                    placeholder="Search by issue code..."
-                                    value={searchTerm}
-                                    onChange={handleSearch}
-                                />
-                            </Form.Group>
+                        <Col md={6} className="text-md-end">
+                            {(user?.role === 'ADMIN' || user?.role === 'STAFF') && (
+                                <Button variant="primary" onClick={() => navigate('/issues/new')}>
+                                    <i className="bi bi-plus-circle me-2"></i>
+                                    New Issue
+                                </Button>
+                            )}
                         </Col>
                     </Row>
                 </Card.Header>
@@ -430,17 +580,93 @@ function Dashboard() {
                                 <Table hover bordered>
                                     <thead className="table-light">
                                         <tr>
-                                            <th>Issue Code</th>
-                                            <th>Status</th>
-                                            <th>Requested By</th>
-                                            <th>Approved By</th>
-                                            <th>Issued At</th>
-                                            <th>Note</th>
+                                            <th onClick={() => handleSort('code')} style={{ cursor: 'pointer' }}>
+                                                Issue Code {getSortIndicator('code')}
+                                            </th>
+                                            <th onClick={() => handleSort('status')} style={{ cursor: 'pointer' }}>
+                                                Status {getSortIndicator('status')}
+                                            </th>
+                                            <th onClick={() => handleSort('requested_by')} style={{ cursor: 'pointer' }}>
+                                                Requested By {getSortIndicator('requested_by')}
+                                            </th>
+                                            <th onClick={() => handleSort('approved_by')} style={{ cursor: 'pointer' }}>
+                                                Approved By {getSortIndicator('approved_by')}
+                                            </th>
+                                            <th onClick={() => handleSort('issued_at')} style={{ cursor: 'pointer' }}>
+                                                Issued At {getSortIndicator('issued_at')}
+                                            </th>
+                                            <th onClick={() => handleSort('note')} style={{ cursor: 'pointer' }}>
+                                                Note {getSortIndicator('note')}
+                                            </th>
                                             <th>Actions</th>
+                                        </tr>
+                                        <tr>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="Filter code"
+                                                    value={searchTerm}
+                                                    onChange={handleSearch}
+                                                />
+                                            </th>
+                                            <th>
+                                                <Form.Select
+                                                    size="sm"
+                                                    value={filters.status}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+                                                >
+                                                    <option value="all">All</option>
+                                                    <option value="draft">DRAFT</option>
+                                                    <option value="approved">APPROVED</option>
+                                                    <option value="issued">ISSUED</option>
+                                                    <option value="cancelled">CANCELLED</option>
+                                                </Form.Select>
+                                            </th>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="User Name"
+                                                    value={filters.requestedBy}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, requestedBy: e.target.value }))}
+                                                />
+                                            </th>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="User Name"
+                                                    value={filters.approvedBy}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, approvedBy: e.target.value }))}
+                                                />
+                                            </th>
+                                            <th>
+                                                <div className="d-flex gap-1">
+                                                    <Form.Control
+                                                        size="sm"
+                                                        type="date"
+                                                        value={filters.issuedFrom}
+                                                        onChange={(e) => setFilters((prev) => ({ ...prev, issuedFrom: e.target.value }))}
+                                                    />
+                                                    <Form.Control
+                                                        size="sm"
+                                                        type="date"
+                                                        value={filters.issuedTo}
+                                                        onChange={(e) => setFilters((prev) => ({ ...prev, issuedTo: e.target.value }))}
+                                                    />
+                                                </div>
+                                            </th>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="Filter note"
+                                                    value={filters.note}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, note: e.target.value }))}
+                                                />
+                                            </th>
+                                            <th></th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {issues.map((issue) => (
+                                        {sortedIssues.map((issue) => (
                                             <tr
                                                 key={issue.id}
                                                 onClick={() => handleRowClick(issue.id)}
@@ -474,12 +700,30 @@ function Dashboard() {
                                                 </td>
                                                 <td>
                                                     <Button
-                                                        variant="primary"
+                                                        variant="outline-primary"
                                                         size="sm"
-                                                        onClick={(e) => { e.stopPropagation(); navigate(`/issues/${issue.id}/items`); }}
+                                                        className="me-2"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/issues/${issue.id}/edit`);
+                                                        }}
                                                     >
-                                                        <i className="bi bi-eye"></i> View Details
+                                                        <i className="bi bi-pencil me-1"></i>
+                                                        Edit
                                                     </Button>
+                                                    {user?.role === 'ADMIN' && (
+                                                        <Button
+                                                            variant="outline-danger"
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteIssue(issue.id);
+                                                            }}
+                                                        >
+                                                            <i className="bi bi-trash me-1"></i>
+                                                            Delete
+                                                        </Button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}

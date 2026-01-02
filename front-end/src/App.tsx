@@ -7,6 +7,9 @@ import IssueDetailsPage from './components/IssueDetailsPage';
 import Layout from './components/Layout';
 import UsersPage from './components/UsersPage';
 import ItemsPage from './components/ItemsPage';
+import IssueFormPage from './components/IssueFormPage';
+import ItemFormPage from './components/ItemFormPage';
+import UserFormPage from './components/UserFormPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
     const { user, isLoading } = useAuth();
@@ -76,6 +79,54 @@ function AppRoutes() {
                 element={
                     <PrivateRoute>
                         <ItemsPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/issues/new"
+                element={
+                    <PrivateRoute>
+                        <IssueFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/issues/:issueId/edit"
+                element={
+                    <PrivateRoute>
+                        <IssueFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/items/new"
+                element={
+                    <PrivateRoute>
+                        <ItemFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/items/:itemId/edit"
+                element={
+                    <PrivateRoute>
+                        <ItemFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/users/new"
+                element={
+                    <PrivateRoute>
+                        <UserFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/users/:userId/edit"
+                element={
+                    <PrivateRoute>
+                        <UserFormPage />
                     </PrivateRoute>
                 }
             />
