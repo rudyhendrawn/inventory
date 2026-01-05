@@ -114,3 +114,22 @@ CREATE TABLE audit_log (
   INDEX idx_audit_entity (entity_type, entity_id),
   CONSTRAINT fk_audit_user FOREIGN KEY (actor_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS settings (
+    id INT PRIMARY KEY DEFAULT 1,
+    app_name VARCHAR(100) NOT NULL DEFAULT 'Inventory Management System',
+    items_per_page INT NOT NULL DEFAULT 50,
+    allow_negative_stock TINYINT(1) NOT NULL DEFAULT 0,
+    auto_backup_enabled TINYINT(1) NOT NULL DEFAULT 1,
+    backup_retention_days INT NOT NULL DEFAULT 30,
+    low_stock_threshold INT NOT NULL DEFAULT 10,
+    enable_notifications TINYINT(1) NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_by BIGINT NULL,
+    CONSTRAINT chk_id CHECK (id = 1),
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Insert default settings
+INSERT INTO settings (id) VALUES (1)
+ON DUPLICATE KEY UPDATE id=id;

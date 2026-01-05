@@ -25,7 +25,7 @@ class DatabaseConstants:
     STATUS_DRAFT = "DRAFT"
     STATUS_APPROVED = "APPROVED"
     STATUS_ISSUED = "ISSUED"
-    STATUS_CANCELED = "CANCELED"
+    STATUS_CANCELED = "CANCELLED"
 
     # Transaction types
     TX_TYPE_IN = "IN"

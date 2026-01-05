@@ -10,6 +10,7 @@ import ItemsPage from './components/ItemsPage';
 import IssueFormPage from './components/IssueFormPage';
 import ItemFormPage from './components/ItemFormPage';
 import UserFormPage from './components/UserFormPage';
+import SettingsPage from './components/SettingsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
     const { user, isLoading } = useAuth();
@@ -127,6 +128,14 @@ function AppRoutes() {
                 element={
                     <PrivateRoute>
                         <UserFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/settings"
+                element={
+                    <PrivateRoute>
+                        <SettingsPage />
                     </PrivateRoute>
                 }
             />

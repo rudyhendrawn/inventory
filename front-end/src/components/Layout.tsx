@@ -13,6 +13,8 @@ function Layout({ children }: LayoutProps) {
     const navigate = useNavigate();
     const location = useLocation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const logoUrl = new URL('../../assets/sgi-logo.png', import.meta.url).href;
+    // const logoLargeStyle = { width: '240px', height: '200px' };
 
     const handleLogout = () => {
         logout();
@@ -37,10 +39,10 @@ function Layout({ children }: LayoutProps) {
             {/* Desktop Sidebar */}
             <div className="sidebar d-none d-lg-flex flex-column bg-dark text-white" style={{ width: '250px' }}>
                 <div className="sidebar-header p-3 border-bottom border-secondary">
-                    <h5 className="mb-0">
-                        <i className="bi bi-box-seam me-2"></i>
-                        Inventory Management System
-                    </h5>
+                    <div className="d-flex align-items-center">
+                        <img src={logoUrl} alt="SGI logo" className="brand-logo brand-logo-lg me-2"/>
+                        <h5 className="mb-0">Inventory Management System</h5>
+                    </div>
                 </div>
 
                 <div className="grow overflow-auto">
@@ -89,8 +91,8 @@ function Layout({ children }: LayoutProps) {
             >
                 <Offcanvas.Header closeButton closeVariant="white" className="border-bottom border-secondary">
                     <Offcanvas.Title>
-                        <i className="bi bi-box-seam me-2"></i>
-                        Inventory
+                        <img src={logoUrl} alt="SGI logo" className="brand-logo me-2" />
+                        Inventory Management System
                     </Offcanvas.Title>
                 </Offcanvas.Header>
                 <Offcanvas.Body>
@@ -143,7 +145,10 @@ function Layout({ children }: LayoutProps) {
                         >
                             <i className="bi bi-list fs-5"></i>
                         </Button>
-                        <span className="navbar-brand mb-0 h5">Inventory</span>
+                        <div className="navbar-brand mb-0 h5 d-flex align-items-center">
+                            <img src={logoUrl} alt="SGI logo" className="brand-logo me-2" />
+                            <span>Inventory Management System</span>
+                        </div>
                         <div style={{ width: '40px' }}></div>
                     </Container>
                 </nav>

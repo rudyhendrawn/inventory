@@ -64,3 +64,21 @@
 .offcanvas .nav-link.active:hover {
     background-color: #0b5ed7 !important;
 }
+.brand-logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+    
+.brand-logo-lg {
+    width: 140px;
+    height: 140px;
+}
+
+/* Adjust for larger screens if needed */
+@media (min-width: 992px) {
+    .brand-logo-lg {
+        width: 80px;
+        height: 80px;
+    }
+}

@@ -78,7 +78,7 @@ interface Statistics {
 }
 
 function Dashboard() {
-    const { user, logout, isLoading: authLoading } = useAuth();
+    const { user, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [issues, setIssues] = useState<Issue[]>([]);
     const [statistics, setStatistics] = useState<Statistics | null>(null);
@@ -698,32 +698,36 @@ function Dashboard() {
                                                 <td className="text-truncate" style={{ maxWidth: '200px' }}>
                                                     {issue.note || '-'}
                                                 </td>
-                                                <td>
-                                                    <Button
-                                                        variant="outline-primary"
-                                                        size="sm"
-                                                        className="me-2"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            navigate(`/issues/${issue.id}/edit`);
-                                                        }}
-                                                    >
-                                                        <i className="bi bi-pencil me-1"></i>
-                                                        Edit
-                                                    </Button>
-                                                    {user?.role === 'ADMIN' && (
+                                                <td onClick={(e) => e.stopPropagation()}>
+                                                    <div className="d-flex gap-1">
                                                         <Button
-                                                            variant="outline-danger"
+                                                            variant="outline-primary"
                                                             size="sm"
+                                                            className="me-2"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                handleDeleteIssue(issue.id);
+                                                                navigate(`/issues/${issue.id}/edit`);
                                                             }}
+                                                            title="Edit"
                                                         >
-                                                            <i className="bi bi-trash me-1"></i>
-                                                            Delete
+                                                            <i className="bi bi-pencil me-1"></i>
+                                                            
                                                         </Button>
-                                                    )}
+                                                        {user?.role === 'ADMIN' && (
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteIssue(issue.id);
+                                                                }}
+                                                                title="Delete"
+                                                            >
+                                                                <i className="bi bi-trash me-1"></i>
+                                                                
+                                                            </Button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
