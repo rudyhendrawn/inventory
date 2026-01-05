@@ -34,7 +34,7 @@ CREATE TABLE items (
   category_id BIGINT NOT NULL,
   unit_id BIGINT NOT NULL,
   owner_user_id BIGINT NULL,
-  barcode VARCHAR(64),
+  qrcode VARCHAR(64),
   min_stock DECIMAL(18,6) NOT NULL DEFAULT 0,
   image_url VARCHAR(255),
   active TINYINT(1) NOT NULL DEFAULT 1,

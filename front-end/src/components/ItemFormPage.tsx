@@ -38,7 +38,7 @@ interface ItemFormState {
     category_id: string;
     unit_id: string;
     owner_user_id: string;
-    barcode: string;
+    qrcode: string;
     min_stock: string;
     image_url: string;
     active: boolean;
@@ -62,7 +62,7 @@ function ItemFormPage() {
         category_id: '',
         unit_id: '',
         owner_user_id: '',
-        barcode: '',
+        qrcode: '',
         min_stock: '0',
         image_url: '',
         active: true,
@@ -157,7 +157,7 @@ function ItemFormPage() {
                     category_id: data.category_id ? String(data.category_id) : '',
                     unit_id: data.unit_id ? String(data.unit_id) : '',
                     owner_user_id: data.owner_user_id ? String(data.owner_user_id) : '',
-                    barcode: data.barcode || '',
+                    qrcode: data.qrcode || '',
                     min_stock: typeof data.min_stock === 'number' ? String(data.min_stock) : '0',
                     image_url: data.image_url || '',
                     active: Boolean(data.active),
@@ -201,7 +201,7 @@ function ItemFormPage() {
             category_id: Number(form.category_id),
             unit_id: Number(form.unit_id),
             owner_user_id: form.owner_user_id ? Number(form.owner_user_id) : null,
-            barcode: form.barcode.trim() || null,
+            qrcode: form.qrcode.trim() || null,
             min_stock: Number(form.min_stock || 0),
             image_url: form.image_url.trim() || null,
             active: form.active,
@@ -368,10 +368,10 @@ function ItemFormPage() {
                                 </Col>
                                 <Col md={6}>
                                     <Form.Group>
-                                        <Form.Label>Barcode</Form.Label>
+                                        <Form.Label>QR Code</Form.Label>
                                         <Form.Control
-                                            value={form.barcode}
-                                            onChange={(e) => handleChange('barcode', e.target.value)}
+                                            value={form.qrcode}
+                                            onChange={(e) => handleChange('qrcode', e.target.value)}
                                         />
                                     </Form.Group>
                                 </Col>
@@ -380,7 +380,8 @@ function ItemFormPage() {
                                         <Form.Label>Min Stock</Form.Label>
                                         <Form.Control
                                             type="number"
-                                            step="0.1"
+                                            step="1"
+                                            min="0"
                                             value={form.min_stock}
                                             onChange={(e) => handleChange('min_stock', e.target.value)}
                                         />

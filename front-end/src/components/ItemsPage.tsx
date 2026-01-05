@@ -11,10 +11,12 @@ import {
     Form,
     Badge,
     Spinner,
-    Alert,
     Pagination,
-    Modal
+    Modal,
+    Alert
 } from 'react-bootstrap';
+import QRCode from 'qrcode';
+import { downloadQRCodesPDF } from '../utils/qrPdfGenerators';
 
 interface Item {
     id: number;
@@ -23,7 +25,7 @@ interface Item {
     category_id: number;
     unit_id: number;
     owner_user_id: number | null;
-    barcode: string | null;
+    qrcode: string | null;
     min_stock: number;
     image_url: string | null;
     active: boolean;
@@ -37,6 +39,17 @@ interface ItemListResponse {
     page_size: number;
 }
 
+interface Category {
+    id: number;
+    name: string;
+}
+
+interface User {
+    id: number;
+    name: string;
+    email: string;
+}
+
 function ItemsPage() {
     const { user: currentUser, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
@@ -44,7 +57,7 @@ function ItemsPage() {
     const [searchTerm, ] = useState('');
     const [activeOnly, ] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
-    const [, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
@@ -55,11 +68,19 @@ function ItemsPage() {
     const [filters, setFilters] = useState({
         sku: '',
         name: '',
-        barcode: '',
+        qrcode: '',
         minStockMin: '',
         minStockMax: '',
         status: 'all',
     });
+    const [showQRModal, setShowQRModal] = useState(false);
+    const [selectedItemForQR, setSelectedItemForQR] = useState<Item | null>(null);
+    const [showBulkQRModal, setShowBulkQRModal] = useState(false);
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
+    const [qrDataUrl, setQrDataUrl] = useState<string>('');
+    const [bulkQRCodes, setBulkQRCodes] = useState<{ item: Item; dataUrl: string }[]>([]);
+    const [isGeneratingBulk, setIsGeneratingBulk] = useState(false);
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
@@ -72,7 +93,161 @@ function ItemsPage() {
 
     useEffect(() => {
         fetchItems();
+        fetchMetadata();
     }, [currentPage, searchTerm, activeOnly]);
+
+    const fetchMetadata = async () => {
+        if (!token) return;
+
+        try {
+            const [categoriesRes, usersRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/categories?page=1&page_size=100`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }),
+                fetch(`${API_BASE_URL}/users?page=1&page_size=100&active_only=1`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }),
+            ]);
+
+            if (categoriesRes.ok) {
+                const categoriesData = await categoriesRes.json();
+                setCategories(categoriesData || []);
+            }
+            if (usersRes.ok) {
+                const usersData = await usersRes.json();
+                setUsers(usersData.users || []);
+            }
+        } catch (error) {
+            console.error('Error fetching metadata:', error);
+        }
+    };
+
+    const getCategoryName = (categoryId: number): string => {
+        const category = categories.find(c => c.id === categoryId);
+        return category ? category.name : 'Unknown';
+    };
+
+    const getUserName = (userId: number | null): string => {
+        if (!userId) return 'Unassigned';
+        const user = users.find(u => u.id === userId);
+        return user ? user.name : 'Unknown';
+    };
+
+    const generateQRData = (item: Item): string => {
+        const qrInfo = {
+            item_id: item.id,
+            sku: item.sku,
+            name: item.name,
+            category: getCategoryName(item.category_id),
+            owner: getUserName(item.owner_user_id),
+            status: item.active ? 'Active' : 'Inactive',
+        };
+        return JSON.stringify(qrInfo, null, 2);
+    };
+
+    const handleGenerateQR = async (item: Item) => {
+        try {
+            const qrData = generateQRData(item);
+            const dataUrl = await QRCode.toDataURL(qrData, { 
+                width: 300,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF',
+                }
+            });
+            setQrDataUrl(dataUrl);
+            setSelectedItemForQR(item);
+            setShowQRModal(true);
+        } catch (error) {
+            console.error('Error generating QR code:', error);
+            setError('Failed to generate QR code');
+        }
+    };
+
+    const handleDownloadQR = () => {
+        if (!qrDataUrl || !selectedItemForQR) return;
+
+        const link = document.createElement('a');
+        link.href = qrDataUrl;
+        link.download = `QR_${selectedItemForQR.sku}_${selectedItemForQR.name.replace(/\s+/g, '_')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleGenerateBulkQR = async () => {
+        setIsGeneratingBulk(true);
+        try {
+            const qrPromises = sortedItems.map(async (item) => {
+                const qrData = generateQRData(item);
+                const dataUrl = await QRCode.toDataURL(qrData, {
+                    width: 300,
+                    margin: 2,
+                    color: {
+                        dark: '#000000',
+                        light: '#FFFFFF',
+                    }
+                });
+                return { item, dataUrl };
+            });
+            const qrResults = await Promise.all(qrPromises);
+            setBulkQRCodes(qrResults);
+            setShowBulkQRModal(true);
+        } catch (error) {
+            console.error('Error generating bulk QR codes:', error);
+            setError('Failed to generate bulk QR codes');
+        } finally {
+            setIsGeneratingBulk(false);
+        }
+    };
+
+    const handleDownloadBulkPDF = async () => {
+        setIsGeneratingBulk(true);
+        try {
+            const qrPromises = sortedItems.map(async (item) => {
+                const qrData = generateQRData(item);
+                const dataUrl = await QRCode.toDataURL(qrData, {
+                    width: 300,
+                    margin: 2,
+                    color: {
+                        dark: '#000000',
+                        light: '#FFFFFF',
+                    }
+                });
+                return { 
+                    sku: item.sku, 
+                    name: item.name,
+                    dataUrl 
+                };
+            });
+
+            const qrItems = await Promise.all(qrPromises);
+
+            // Generate and download PDF
+            downloadQRCodesPDF(qrItems, undefined, {
+                cols: 5,
+                rows: 6,
+                showGrid: true,
+            });
+        } catch (error) {
+            console.error('Error generating bulk QR codes PDF:', error);
+            setError('Failed to generate bulk QR codes PDF');
+        } finally {
+            setIsGeneratingBulk(false);
+        }
+    };
+
+    const handleRowClick = (item: Item) => {
+        setSelectedItem(item);
+        setShowModal(true);
+    };
 
     const fetchItems = async () => {
         if (!token) return;
@@ -114,11 +289,6 @@ function ItemsPage() {
         }
     };
 
-    const handleRowClick = (item: Item) => {
-        setSelectedItem(item);
-        setShowModal(true);
-    };
-
     const handleDeleteItem = async (itemId: number) => {
         if (!token) return;
         if (!window.confirm('Delete this item?')) return;
@@ -152,7 +322,7 @@ function ItemsPage() {
 
     const getSortIndicator = (key: keyof Item) => {
         if (sortConfig?.key !== key) return '';
-        return sortConfig.direction === 'asc' ? '^' : 'v';
+        return sortConfig.direction === 'asc' ? '↑' : '↓';
     };
 
     const filteredItems = useMemo(() => {
@@ -163,8 +333,8 @@ function ItemsPage() {
             if (filters.name && !item.name.toLowerCase().includes(filters.name.toLowerCase())) {
                 return false;
             }
-            const barcodeValue = item.barcode ?? '';
-            if (filters.barcode && !barcodeValue.toLowerCase().includes(filters.barcode.toLowerCase())) {
+            const qrcodeValue = item.qrcode ?? '';
+            if (filters.qrcode && !qrcodeValue.toLowerCase().includes(filters.qrcode.toLowerCase())) {
                 return false;
             }
             if (filters.status !== 'all') {
@@ -232,26 +402,67 @@ function ItemsPage() {
                         </h2>
                         <p className="text-muted">Manage inventory items and stock</p>
                     </Col>
-                    {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
-                        <Col xs="auto">
+                    <Col xs="auto" className="d-flex gap-2">
+                        <Button 
+                            variant="outline-primary" 
+                            onClick={handleGenerateBulkQR}
+                            disabled={isGeneratingBulk || sortedItems.length === 0}
+                        >
+                            {isGeneratingBulk ? (
+                                <>
+                                    <Spinner animation="border" size="sm" className="me-2" />
+                                    Generating...
+                                </>
+                            ) : (
+                                <>
+                                    <i className="bi bi-qr-code me-2"></i>
+                                    Generate All QR Codes
+                                </>
+                            )}
+                        </Button>
+                        <Button
+                            variant="outline-success"
+                            onClick={handleDownloadBulkPDF}
+                            disabled={isGeneratingBulk || sortedItems.length === 0}
+                        >
+                            {isGeneratingBulk ? (
+                                <>
+                                    <Spinner animation="border" size="sm" className="me-2" />
+                                    Preparing PDF...
+                                </>
+                            ) : (
+                                <>
+                                    <i className="bi bi-file-earmark-pdf-fill me-2"></i>
+                                    Download All as PDF
+                                </>
+                            )}
+                        </Button>
+                        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
                             <Button variant="primary" onClick={() => navigate('/items/new')}>
                                 <i className="bi bi-plus-circle me-2"></i>
                                 Add Item
                             </Button>
-                        </Col>
-                    )}
+                        )}
+                    </Col>
                 </Row>
+
+                {error && (
+                    <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                        {error}
+                    </Alert>
+                )}
+
                 {/* Items Table */}
                 <Card className="shadow-sm">
                     <Card.Header className="bg-white border-bottom">
                         <Row className="align-items-center">
-                                    <Col>
-                                        <h5 className="mb-0">
-                                            Items ({filteredItems.length} / {totalItems})
-                                        </h5>
-                                    </Col>
-                                </Row>
-                            </Card.Header>
+                            <Col>
+                                <h5 className="mb-0">
+                                    Items ({filteredItems.length} / {totalItems})
+                                </h5>
+                            </Col>
+                        </Row>
+                    </Card.Header>
                     <Card.Body className="p-0">
                         {items.length === 0 ? (
                             <div className="text-center text-muted py-5">
@@ -263,14 +474,15 @@ function ItemsPage() {
                                 <Table hover className="mb-0">
                                     <thead className="table-light">
                                         <tr>
+                                            <th style={{ width: '120px' }}>QR Code</th>
                                             <th onClick={() => handleSort('sku')} style={{ cursor: 'pointer' }}>
                                                 SKU {getSortIndicator('sku')}
                                             </th>
                                             <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
                                                 Name {getSortIndicator('name')}
                                             </th>
-                                            <th onClick={() => handleSort('barcode')} style={{ cursor: 'pointer' }}>
-                                                Barcode {getSortIndicator('barcode')}
+                                            <th onClick={() => handleSort('qrcode')} style={{ cursor: 'pointer' }}>
+                                                QR Data {getSortIndicator('qrcode')}
                                             </th>
                                             <th onClick={() => handleSort('min_stock')} style={{ cursor: 'pointer' }}>
                                                 Min Stock {getSortIndicator('min_stock')}
@@ -281,6 +493,7 @@ function ItemsPage() {
                                             <th>Actions</th>
                                         </tr>
                                         <tr>
+                                            <th></th>
                                             <th>
                                                 <Form.Control
                                                     size="sm"
@@ -300,9 +513,9 @@ function ItemsPage() {
                                             <th>
                                                 <Form.Control
                                                     size="sm"
-                                                    placeholder="Filter barcode"
-                                                    value={filters.barcode}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, barcode: e.target.value }))}
+                                                    placeholder="Filter QR Data"
+                                                    value={filters.qrcode}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, qrcode: e.target.value }))}
                                                 />
                                             </th>
                                             <th>
@@ -310,7 +523,8 @@ function ItemsPage() {
                                                     <Form.Control
                                                         size="sm"
                                                         type="number"
-                                                        step="0.1"
+                                                        step="1"
+                                                        min="0"
                                                         placeholder="Min"
                                                         value={filters.minStockMin}
                                                         onChange={(e) => setFilters((prev) => ({ ...prev, minStockMin: e.target.value }))}
@@ -318,7 +532,8 @@ function ItemsPage() {
                                                     <Form.Control
                                                         size="sm"
                                                         type="number"
-                                                        step="0.1"
+                                                        step="1"
+                                                        min="0"
                                                         placeholder="Max"
                                                         value={filters.minStockMax}
                                                         onChange={(e) => setFilters((prev) => ({ ...prev, minStockMax: e.target.value }))}
@@ -346,6 +561,16 @@ function ItemsPage() {
                                                 style={{ cursor: 'pointer' }}
                                                 onClick={() => handleRowClick(item)}
                                             >
+                                                <td onClick={(e) => e.stopPropagation()}>
+                                                    <Button
+                                                        variant="outline-secondary"
+                                                        size="sm"
+                                                        onClick={() => handleGenerateQR(item)}
+                                                    >
+                                                        <i className="bi bi-qr-code me-1"></i>
+                                                        Generate
+                                                    </Button>
+                                                </td>
                                                 <td>
                                                     <code className="text-primary fw-bold">
                                                         {item.sku}
@@ -353,9 +578,9 @@ function ItemsPage() {
                                                 </td>
                                                 <td className="fw-semibold">{item.name}</td>
                                                 <td>
-                                                    {item.barcode ? (
+                                                    {item.qrcode ? (
                                                         <code className="text-secondary">
-                                                            {item.barcode}
+                                                            {item.qrcode}
                                                         </code>
                                                     ) : (
                                                         <span className="text-muted">-</span>
@@ -449,6 +674,71 @@ function ItemsPage() {
                 </Card>
             </Container>
 
+            {/* Single QR Code Modal */}
+            <Modal show={showQRModal} onHide={() => setShowQRModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>QR Code - {selectedItemForQR?.name}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body className="text-center">
+                    {selectedItemForQR && (
+                        <>
+                            <img src={qrDataUrl} alt="QR Code" className="img-fluid mb-3" />
+                            <Card className="text-start">
+                                <Card.Body>
+                                    <h6 className="mb-3">QR Code contains:</h6>
+                                    <p className="mb-1"><strong>Item ID:</strong> {selectedItemForQR.id}</p>
+                                    <p className="mb-1"><strong>SKU:</strong> {selectedItemForQR.sku}</p>
+                                    <p className="mb-1"><strong>Name:</strong> {selectedItemForQR.name}</p>
+                                    <p className="mb-1"><strong>Category:</strong> {getCategoryName(selectedItemForQR.category_id)}</p>
+                                    <p className="mb-1"><strong>Owner:</strong> {getUserName(selectedItemForQR.owner_user_id)}</p>
+                                    <p className="mb-0"><strong>Status:</strong> {selectedItemForQR.active ? 'Active' : 'Inactive'}</p>
+                                </Card.Body>
+                            </Card>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowQRModal(false)}>
+                        Close
+                    </Button>
+                    <Button variant="primary" onClick={handleDownloadQR}>
+                        <i className="bi bi-download me-2"></i>
+                        Download QR Code
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Bulk QR Codes Modal */}
+            <Modal show={showBulkQRModal} onHide={() => setShowBulkQRModal(false)} size="xl" scrollable>
+                <Modal.Header closeButton>
+                    <Modal.Title>All QR Codes ({bulkQRCodes.length} items)</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Row className="g-4">
+                        {bulkQRCodes.map(({ item, dataUrl }) => (
+                            <Col md={4} key={item.id}>
+                                <Card>
+                                    <Card.Body className="text-center">
+                                        <img src={dataUrl} alt={`QR Code for ${item.sku}`} className="img-fluid mb-2" style={{ maxWidth: '200px' }} />
+                                        <h6 className="mb-1">{item.sku}</h6>
+                                        <p className="text-muted small mb-0">{item.name}</p>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                        ))}
+                    </Row>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowBulkQRModal(false)}>
+                        Close
+                    </Button>
+                    <Button variant="primary" onClick={handleDownloadBulkPDF}>
+                        <i className="bi bi-download me-2"></i>
+                        Download All ({bulkQRCodes.length})
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
             {/* Item Details Modal */}
             <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
                 <Modal.Header closeButton>
@@ -466,20 +756,20 @@ function ItemsPage() {
                                 <p>{selectedItem.name}</p>
                             </Col>
                             <Col md={6}>
-                                <strong>Barcode:</strong>
-                                <p>{selectedItem.barcode || '-'}</p>
+                                <strong>Category:</strong>
+                                <p>{getCategoryName(selectedItem.category_id)}</p>
+                            </Col>
+                            <Col md={6}>
+                                <strong>Owner:</strong>
+                                <p>{getUserName(selectedItem.owner_user_id)}</p>
+                            </Col>
+                            <Col md={6}>
+                                <strong>QR Data:</strong>
+                                <p>{selectedItem.qrcode || '-'}</p>
                             </Col>
                             <Col md={6}>
                                 <strong>Minimum Stock:</strong>
                                 <p>{selectedItem.min_stock.toFixed(2)}</p>
-                            </Col>
-                            <Col md={6}>
-                                <strong>Category ID:</strong>
-                                <p>{selectedItem.category_id}</p>
-                            </Col>
-                            <Col md={6}>
-                                <strong>Unit ID:</strong>
-                                <p>{selectedItem.unit_id}</p>
                             </Col>
                             <Col md={6}>
                                 <strong>Status:</strong>

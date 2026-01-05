@@ -29,7 +29,7 @@ class ItemRepository:
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
             query = f"""
-                SELECT id, sku, name, category_id, unit_id, owner_user_id, barcode, min_stock, image_url, active
+                SELECT id, sku, name, category_id, unit_id, owner_user_id, qrcode, min_stock, image_url, active
                 FROM items
                 {where_clause}
                 ORDER BY name
@@ -39,7 +39,7 @@ class ItemRepository:
 
             return fetch_all(query, tuple(params))
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def get_by_id(item_id: int) -> Optional[Dict[str, Any]]:
@@ -51,13 +51,13 @@ class ItemRepository:
                 raise ValueError("Invalid item ID")
             
             query = """
-                SELECT id, sku, name, category_id, unit_id, owner_user_id, barcode, min_stock, image_url, active
+                SELECT id, sku, name, category_id, unit_id, owner_user_id, qrcode, min_stock, image_url, active
                 FROM items
                 WHERE id = %s
                 """
             return fetch_one(query, (item_id,))
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def get_by_sku(sku: str) -> Optional[Dict[str, Any]]:
@@ -69,13 +69,13 @@ class ItemRepository:
                 raise ValueError("SKU must not be empty")
             
             query = """
-                SELECT id, sku, name, category_id, unit_id, owner_user_id, barcode, min_stock, image_url, active
+                SELECT id, sku, name, category_id, unit_id, owner_user_id, qrcode, min_stock, image_url, active
                 FROM items
                 WHERE sku = %s
                 """
             return fetch_one(query, (sku.strip().upper(),))
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def create(item_data: ItemCreate) -> Optional[Dict[str, Any]]:
@@ -84,9 +84,8 @@ class ItemRepository:
         """
         try:
             query = """
-                INSERT INTO items (sku, name, category_id, unit_id, owner_user_id, barcode, min_stock, image_url, active)
+                INSERT INTO items (sku, name, category_id, unit_id, owner_user_id, qrcode, min_stock, image_url, active)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id, sku, name, category_id, unit_id, owner_user_id, barcode, min_stock, image_url, active
                 """
             execute(query, (
                 item_data.sku.strip().upper(),
@@ -94,7 +93,7 @@ class ItemRepository:
                 item_data.category_id,
                 item_data.unit_id,
                 item_data.owner_user_id,
-                item_data.barcode,
+                item_data.qrcode,
                 item_data.min_stock,
                 item_data.image_url,
                 item_data.active,
@@ -102,7 +101,7 @@ class ItemRepository:
             
             return ItemRepository.get_by_sku(item_data.sku)
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def update(item_id: int, item_data: ItemUpdate) -> Optional[Dict[str, Any]]:
@@ -131,9 +130,9 @@ class ItemRepository:
             if item_data.owner_user_id is not None:
                 set_clauses.append("owner_user_id = %s")
                 params.append(item_data.owner_user_id)
-            if item_data.barcode is not None:
-                set_clauses.append("barcode = %s")
-                params.append(item_data.barcode)
+            if item_data.qrcode is not None:
+                set_clauses.append("qrcode = %s")
+                params.append(item_data.qrcode)
             if item_data.min_stock is not None:
                 set_clauses.append("min_stock = %s")
                 params.append(item_data.min_stock)
@@ -162,7 +161,7 @@ class ItemRepository:
             else:
                 return None
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def delete(item_id: int) -> bool:
@@ -181,7 +180,7 @@ class ItemRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
 
     @staticmethod
     def exists_by_id(item_id: int) -> bool:
@@ -198,7 +197,7 @@ class ItemRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
 
     @staticmethod
     def exists_by_sku(sku: str, exclude_id: Optional[int] = None) -> bool:
@@ -221,7 +220,7 @@ class ItemRepository:
             else:
                 return False
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def count(active_only: bool = True, search: Optional[str] = None) -> int:
@@ -248,4 +247,4 @@ class ItemRepository:
 
             return result.get("count", 0) if result else 0
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
