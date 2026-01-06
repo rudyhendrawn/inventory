@@ -11,6 +11,10 @@ import IssueFormPage from './components/IssueFormPage';
 import ItemFormPage from './components/ItemFormPage';
 import UserFormPage from './components/UserFormPage';
 import SettingsPage from './components/SettingsPage';
+import CategoryPage from './components/CategoryPage';
+import UnitPage from './components/UnitPage';
+import TransactionsPage from './components/TransactionsPage';
+import TransactionFormPage from './components/TransactionFormPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
     const { user, isLoading } = useAuth();
@@ -80,6 +84,46 @@ function AppRoutes() {
                 element={
                     <PrivateRoute>
                         <ItemsPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route 
+                path="/categories"
+                element={
+                    <PrivateRoute>
+                        <CategoryPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route 
+                path="/units"
+                element={
+                    <PrivateRoute>
+                        <UnitPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/transactions"
+                element={
+                    <PrivateRoute>
+                        <TransactionsPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/transactions/new"
+                element={
+                    <PrivateRoute>
+                        <TransactionFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/transactions/:txId/edit"
+                element={
+                    <PrivateRoute>
+                        <TransactionFormPage />
                     </PrivateRoute>
                 }
             />

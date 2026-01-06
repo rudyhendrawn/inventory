@@ -13,8 +13,9 @@ function Layout({ children }: LayoutProps) {
     const navigate = useNavigate();
     const location = useLocation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [itemsMenuOpen, setItemsMenuOpen] = useState(false);
+    const [itemsMenuOpenMobile, setItemsMenuOpenMobile] = useState(false);
     const logoUrl = new URL('../../assets/sgi-logo.png', import.meta.url).href;
-    // const logoLargeStyle = { width: '240px', height: '200px' };
 
     const handleLogout = () => {
         logout();
@@ -23,7 +24,17 @@ function Layout({ children }: LayoutProps) {
 
     const menuItems = [
         { path: '/dashboard', icon: 'bi-speedometer2', label: 'Dashboard' },
-        { path: '/items', icon: 'bi-grid', label: 'Items' },
+        { 
+            path: '/items', 
+            icon: 'bi-grid', 
+            label: 'Items',
+            subMenu: [
+                { path: '/items', icon: 'bi-box', label: 'All Items' },
+                { path: '/categories', icon: 'bi-tag', label: 'Categories' },
+                { path: '/units', icon: 'bi-rulers', label: 'Units' },
+            ]
+        },
+        { path: '/transactions', icon: 'bi-arrow-left-right', label: 'Transactions' },
     ];
 
     // Only show for admin
@@ -33,6 +44,11 @@ function Layout({ children }: LayoutProps) {
     }
 
     const isActive = (path: string) => location.pathname === path;
+    const isItemsMenuActive = () => {
+        return location.pathname === '/items' || 
+               location.pathname === '/categories' || 
+               location.pathname === '/units';
+    };
 
     return (
         <div className="d-flex" style={{ minHeight: '100vh' }}>
@@ -48,16 +64,52 @@ function Layout({ children }: LayoutProps) {
                 <div className="grow overflow-auto">
                     <nav className="nav flex-column p-3">
                         {menuItems.map((item) => (
-                            <button
+                            <div
                                 key={item.path}
-                                className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded ${
-                                    isActive(item.path) ? 'active bg-primary' : ''
-                                }`}
-                                onClick={() => navigate(item.path)}
+                                onMouseEnter={() => {
+                                    if (item.subMenu) setItemsMenuOpen(true);
+                                }}
+                                onMouseLeave={() => {
+                                    if (item.subMenu) setItemsMenuOpen(false);
+                                }}
                             >
-                                <i className={`bi ${item.icon} me-2`}></i>
-                                {item.label}
-                            </button>
+                                <button
+                                    className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded w-100 ${
+                                        item.subMenu 
+                                            ? (isItemsMenuActive() ? 'active bg-primary' : '')
+                                            : (isActive(item.path) ? 'active bg-primary' : '')
+                                    }`}
+                                    onClick={() => {
+                                        if (item.subMenu) {
+                                            navigate(item.path);
+                                        } else {
+                                            navigate(item.path);
+                                        }
+                                    }}
+                                >
+                                    <i className={`bi ${item.icon} me-2`}></i>
+                                    {item.label}
+                                    {item.subMenu && (
+                                        <i className={`bi ${itemsMenuOpen ? 'bi-chevron-down' : 'bi-chevron-right'} float-end`}></i>
+                                    )}
+                                </button>
+                                {item.subMenu && itemsMenuOpen && (
+                                    <div className="ms-3">
+                                        {item.subMenu.map((subItem) => (
+                                            <button
+                                                key={subItem.path}
+                                                className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded w-100 ${
+                                                    isActive(subItem.path) ? 'active bg-primary' : ''
+                                                }`}
+                                                onClick={() => navigate(subItem.path)}
+                                            >
+                                                <i className={`bi ${subItem.icon} me-2`}></i>
+                                                {subItem.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         ))}
                     </nav>
                 </div>
@@ -98,19 +150,48 @@ function Layout({ children }: LayoutProps) {
                 <Offcanvas.Body>
                     <nav className="nav flex-column">
                         {menuItems.map((item) => (
-                            <button
-                                key={item.path}
-                                className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded ${
-                                    isActive(item.path) ? 'active bg-primary' : ''
-                                }`}
-                                onClick={() => {
-                                    navigate(item.path);
-                                    setSidebarOpen(false);
-                                }}
-                            >
-                                <i className={`bi ${item.icon} me-2`}></i>
-                                {item.label}
-                            </button>
+                            <div key={item.path}>
+                                <button
+                                    className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded w-100 ${
+                                        item.subMenu 
+                                            ? (isItemsMenuActive() ? 'active bg-primary' : '')
+                                            : (isActive(item.path) ? 'active bg-primary' : '')
+                                    }`}
+                                    onClick={() => {
+                                        if (item.subMenu) {
+                                            setItemsMenuOpenMobile(!itemsMenuOpenMobile);
+                                        } else {
+                                            navigate(item.path);
+                                            setSidebarOpen(false);
+                                        }
+                                    }}
+                                >
+                                    <i className={`bi ${item.icon} me-2`}></i>
+                                    {item.label}
+                                    {item.subMenu && (
+                                        <i className={`bi ${itemsMenuOpenMobile ? 'bi-chevron-down' : 'bi-chevron-right'} float-end`}></i>
+                                    )}
+                                </button>
+                                {item.subMenu && itemsMenuOpenMobile && (
+                                    <div className="ms-3">
+                                        {item.subMenu.map((subItem) => (
+                                            <button
+                                                key={subItem.path}
+                                                className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded w-100 ${
+                                                    isActive(subItem.path) ? 'active bg-primary' : ''
+                                                }`}
+                                                onClick={() => {
+                                                    navigate(subItem.path);
+                                                    setSidebarOpen(false);
+                                                }}
+                                            >
+                                                <i className={`bi ${subItem.icon} me-2`}></i>
+                                                {subItem.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         ))}
                     </nav>
 
@@ -160,6 +241,6 @@ function Layout({ children }: LayoutProps) {
             </div>
         </div>
     );
-};
+}
 
 export default Layout;

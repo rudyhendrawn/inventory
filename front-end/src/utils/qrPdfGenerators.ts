@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 
 interface QRItem {
-    sku: string;
+    item_code: string;
     name: string;
     dataUrl: string; // base64 image data URL
 }
@@ -28,7 +28,7 @@ export const generateQRCodesPDF = (
         rows = 2,
         cellWidth = 4 * CM_TO_PT,
         cellHeight = 4 * CM_TO_PT,
-        marginX = 2 * CM_TO_PT,
+        // marginX = 2 * CM_TO_PT,
         marginY = 1 * CM_TO_PT,
         showGrid = false
     } = config;
@@ -87,7 +87,7 @@ export const generateQRCodesPDF = (
                 // Add item info below QR code
                 pdf.setFontSize(8);
                 pdf.setFont('helvetica', 'bold');
-                pdf.text(qrItem.sku, x + cellWidth / 2, y + cellHeight - 20, {
+                pdf.text(qrItem.item_code, x + cellWidth / 2, y + cellHeight - 20, {
                     align: 'center',
                     maxWidth: cellWidth - 10
                 });
@@ -99,7 +99,7 @@ export const generateQRCodesPDF = (
                     align: 'center'
                 });
             } catch (error) {
-                console.error(`Error adding QR code for item ${qrItem.sku}:`, error);
+                console.error(`Error adding QR code for item ${qrItem.item_code}:`, error);
             }
         }
 
