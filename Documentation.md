@@ -16,7 +16,7 @@
 
 ### 2.1 Master Data
 
-- Create/read/update/archive **Items** (SKU, name, barcode, category, unit, min stock, image/attachment).
+- Create/read/update/archive **Items** (SKU, name, qrcode, category, unit, min stock, image/attachment).
 - **Categories** and **Units** management.
 - **Locations** (e.g., Warehouse, Store Room). Optional: hierarchical (Main → Sub‑location / Rack / Bin).
 - **Suppliers** (name, contact). Optional: **Customers** if you issue to external parties.
@@ -36,7 +36,7 @@
 
 ### 2.4 Search & Reporting
 
-- Global search by SKU/name/barcode.
+- Global search by SKU/name/qrcode.
 - Current stock by item/location; transaction history (filter by date/item/location/type).
 - Download CSV (items, stock, transactions).
 
@@ -99,7 +99,7 @@
 - **locations** (id, name, code, active)
 - **categories** (id, name)
 - **units** (id, name, symbol, multiplier)
-- **items** (id, sku, name, category_id→categories, unit_id→units, owner_user_id→users (nullable), barcode, min_stock, image_url, active)
+- **items** (id, sku, name, category_id→categories, unit_id→units, owner_user_id→users (nullable), qrcode, min_stock, image_url, active)
 - **stock_levels** (id, item_id→items, location_id→locations, qty_on_hand, updated_at)
 - **stock_tx** (id, item_id, location_id, tx_type[IN|OUT|ADJ|XFER], qty, ref, note, tx_at, user_id)
 - **purchase_orders** (id, supplier_name, code, status, ordered_at, received_at, note)
@@ -146,7 +146,7 @@ CREATE TABLE items (
   name VARCHAR(160) NOT NULL,
   category_id BIGINT NOT NULL,
   unit_id BIGINT NOT NULL,
-  barcode VARCHAR(64),
+  qrcode VARCHAR(64),
   min_stock DECIMAL(18,6) NOT NULL DEFAULT 0,
   image_url VARCHAR(255),
   active TINYINT(1) NOT NULL DEFAULT 1,
@@ -394,7 +394,7 @@ JWKS_URL=https://login.microsoftonline.com/<TENANT_ID>/discovery/v2.0/keys
 - Use \`\` for Entra ID login (PKCE).
 - After sign‑in, store access token securely (Keychain/Keystore) and send it as `Authorization: Bearer` header.
 - API base URL: `http://inventory.lan/` (ensure device can resolve DNS or host file; or use IP).
-- Barcode: add `react-native-camera`/`vision-camera` plugin for scanning (optional feature).
+- QR Code: add `react-native-camera`/`vision-camera` plugin for scanning (optional feature).
 
 **Minimal request**
 
@@ -428,7 +428,7 @@ const res = await fetch('http://inventory.lan/items', {
 2. Implement auth validation & `/me`, then master data (items, categories, locations, units).
 3. Implement stock IN/OUT/ADJ flows + consistent stock update service.
 4. Add PO/Issue modules; then reporting & CSV export.
-5. Add barcode scanning and attachments if needed.
+5. Add qrcode scanning and attachments if needed.
 
 ---
 

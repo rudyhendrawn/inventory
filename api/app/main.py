@@ -8,7 +8,8 @@ from app.routers import (
     items_route,
     category_route,
     issue_route,
-    issue_item_route
+    issue_item_route,
+    settings_route,
     # test_auth
 )
 from app.middleware import LoggingMiddleware, AuthContextMiddleware
@@ -53,6 +54,7 @@ app.include_router(items_route.router)
 app.include_router(category_route.router)
 app.include_router(issue_route.router)
 app.include_router(issue_item_route.router)
+app.include_router(settings_route.router)
 
 if settings.DEBUG:
     pass

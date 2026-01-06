@@ -11,7 +11,7 @@ interface IssueItem {
     item_sku?: string;
     item_name?: string;
     category_id?: number;
-    category_name?: string;
+    category_name?: string | { id: number; name: string };
     unit_id?: number;
     unit_name?: string;
     unit_symbol?: string;
@@ -47,6 +47,8 @@ function IssueDetailsPage() {
     const [error, setError] = useState<string | null>(null);
     const [sortBy, setSortBy] = useState<'name' | 'sku' | 'qty' | 'category'>('name');
     const [filterCategory, setFilterCategory] = useState<string>('all');
+    const [requestedByName, setRequestedByName] = useState<string>('');
+    const [approvedByName, setApprovedByName] = useState<string>('');
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
@@ -62,6 +64,28 @@ function IssueDetailsPage() {
             fetchIssueDetails();
         }
     }, [issueId, token]);
+
+    useEffect(() => {
+        const loadUserNames = async () => {
+            if (!issueDetails) return;
+
+            if (issueDetails.issue.requested_by && typeof issueDetails.issue.requested_by === 'number') {
+                const userData = await fetchUserData(issueDetails.issue.requested_by);
+                if (userData) {
+                    setRequestedByName(userData.name || `User #${issueDetails.issue.requested_by}`);
+                }
+            }
+
+            // Fetch approved_by user name
+            if (issueDetails.issue.approved_by && typeof issueDetails.issue.approved_by === 'number') {
+                const userData = await fetchUserData(issueDetails.issue.approved_by);
+                if (userData) {
+                    setApprovedByName(userData.name || `User #${issueDetails.issue.approved_by}`);
+                }
+            }
+        };
+        loadUserNames();
+    }, [issueDetails]);
 
     const fetchIssueDetails = async () => {
         if (!issueId || !token) return;
@@ -98,6 +122,32 @@ function IssueDetailsPage() {
             console.error('Error fetching issue details:', err);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const fetchUserData = async (userId: number | string) => {
+        if (!token) return null;
+        
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/users/${userId}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch user data');
+            }
+
+            const data = await response.json();
+            return data;
+        } catch (err) {
+            console.error('Error fetching user data:', err);
+            return null;
         }
     };
 
@@ -146,7 +196,10 @@ function IssueDetailsPage() {
 
     const getCategoryName = (cat: any): string => {
         if (!cat && cat !== 0) return '';
-        return typeof cat === 'object' && cat !== null ? cat.name ?? String(cat.id ?? '') : String(cat);
+        if (typeof cat === 'object' && cat !== null) {
+            return cat.name ?? String(cat.id ?? '');
+        }
+        return String(cat);
     };
 
     const getStatusColor = (status: string): 'warning' | 'success' | 'info' | 'secondary' | 'danger' => {
@@ -164,12 +217,13 @@ function IssueDetailsPage() {
         }
     };
 
-    const getUserDisplay = (user: any): string => {
+    const getUserDisplay = (user: any, userName: string | null): string => {
         if (!user) return '-';
+        if (userName) return userName;
         if (typeof user === 'number') return `User #${user}`;
         if (typeof user === 'string') return user;
         return '-';
-    };
+    };       
 
     if (authLoading || isLoading) {
         return (
@@ -212,10 +266,10 @@ function IssueDetailsPage() {
     const categories = getCategories();
 
     return (
-        <div className="bg-light" style={{ minHeight: '100vh' }}>
+        <>
             {/* Header */}
             <nav className="navbar navbar-light bg-white shadow-sm mb-4 border-bottom">
-                <Container fluid="lg">
+                <Container fluid>
                     <Button
                         variant="link"
                         className="text-decoration-none text-primary p-0 me-3"
@@ -228,7 +282,7 @@ function IssueDetailsPage() {
             </nav>
 
             {/* Main Content */}
-            <Container className="py-4" fluid="lg">
+            <Container className="py-4" fluid>
                 {/* Issue Info Card */}
                 <Card className="mb-4 shadow-sm">
                     <Card.Header className="bg-white border-bottom">
@@ -260,13 +314,13 @@ function IssueDetailsPage() {
                             <Col md={6} lg={4}>
                                 <div>
                                     <small className="text-muted d-block fw-bold mb-1">Requested By</small>
-                                    <span>{getUserDisplay(issueDetails.issue.requested_by)}</span>
+                                    <span>{getUserDisplay(issueDetails.issue.requested_by, requestedByName)}</span>
                                 </div>
                             </Col>
                             <Col md={6} lg={4}>
                                 <div>
                                     <small className="text-muted d-block fw-bold mb-1">Approved By</small>
-                                    <span>{getUserDisplay(issueDetails.issue.approved_by)}</span>
+                                    <span>{getUserDisplay(issueDetails.issue.approved_by, approvedByName)}</span>
                                 </div>
                             </Col>
                             <Col md={6} lg={4}>
@@ -402,7 +456,7 @@ function IssueDetailsPage() {
                                                 <td>{item.item_name || '-'}</td>
                                                 <td>
                                                     {item.category_name ? (
-                                                        <Badge bg="secondary">{item.category_name}</Badge>
+                                                        <Badge bg="secondary">{getCategoryName(item.category_name)}</Badge>
                                                     ) : (
                                                         <span className="text-muted">-</span>
                                                     )}
@@ -445,7 +499,7 @@ function IssueDetailsPage() {
                     </Card.Body>
                 </Card>
             </Container>
-        </div>
+        </>
     );
 }
 

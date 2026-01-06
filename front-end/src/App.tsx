@@ -4,6 +4,13 @@ import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import Dashboard from './components/Dashboard';
 import IssueDetailsPage from './components/IssueDetailsPage';
+import Layout from './components/Layout';
+import UsersPage from './components/UsersPage';
+import ItemsPage from './components/ItemsPage';
+import IssueFormPage from './components/IssueFormPage';
+import ItemFormPage from './components/ItemFormPage';
+import UserFormPage from './components/UserFormPage';
+import SettingsPage from './components/SettingsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
     const { user, isLoading } = useAuth();
@@ -12,7 +19,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
         return <div>Loading...</div>;
     }
 
-    return user ? <>{children}</> : <Navigate to="/login" />;
+    return user ? <Layout>{children}</Layout> : <Navigate to="/login" />;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
@@ -57,6 +64,78 @@ function AppRoutes() {
                 element={
                     <PrivateRoute>
                         <IssueDetailsPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route 
+                path="/users"
+                element={
+                    <PrivateRoute>
+                        <UsersPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route 
+                path="/items"
+                element={
+                    <PrivateRoute>
+                        <ItemsPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/issues/new"
+                element={
+                    <PrivateRoute>
+                        <IssueFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/issues/:issueId/edit"
+                element={
+                    <PrivateRoute>
+                        <IssueFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/items/new"
+                element={
+                    <PrivateRoute>
+                        <ItemFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/items/:itemId/edit"
+                element={
+                    <PrivateRoute>
+                        <ItemFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/users/new"
+                element={
+                    <PrivateRoute>
+                        <UserFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/users/:userId/edit"
+                element={
+                    <PrivateRoute>
+                        <UserFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/settings"
+                element={
+                    <PrivateRoute>
+                        <SettingsPage />
                     </PrivateRoute>
                 }
             />

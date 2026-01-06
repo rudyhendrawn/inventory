@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -35,6 +35,13 @@ interface IssueItem {
     qty: number;
     item_sku?: string;
     item_name?: string;
+    category_id?: number;
+    category_name?: { id: number; name: string };
+    unit_id?: number;
+    unit_name?: string;
+    unit_symbol?: string;
+    description?: string;
+    active?: boolean;
 }
 
 interface User {
@@ -42,10 +49,10 @@ interface User {
     name: string;
 }
 
-interface Category {
-    id: number;
-    name: string;
-}
+// interface Category {
+//     id: number;
+//     name: string;
+// }
 
 interface Unit {
     id: number;
@@ -71,7 +78,7 @@ interface Statistics {
 }
 
 function Dashboard() {
-    const { user, logout, isLoading: authLoading } = useAuth();
+    const { user, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [issues, setIssues] = useState<Issue[]>([]);
     const [statistics, setStatistics] = useState<Statistics | null>(null);
@@ -83,6 +90,16 @@ function Dashboard() {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [pageSize] = useState(10);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Issue; direction: 'asc' | 'desc' } | null>(null);
+    const [userNameMap, setUserNameMap] = useState<Record<number, string>>({});
+    const [filters, setFilters] = useState({
+        status: 'all',
+        requestedBy: '',
+        approvedBy: '',
+        issuedFrom: '',
+        issuedTo: '',
+        note: '',
+    });
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
@@ -93,12 +110,62 @@ function Dashboard() {
         }
     }, [authLoading, user, navigate]);
 
-    useEffect(() => {
-        fetchIssues();
-        fetchStatistics();
-    }, [currentPage, searchTerm]);
+    const fetchUserData = useCallback(async (userId: number): Promise<User | null> => {
+        if (!token) return null;
+        try {
+            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
 
-    const fetchStatistics = async () => {
+            if (!response.ok) {
+                    throw new Error('Failed to fetch user data');
+                }
+
+                const data = await response.json();
+                return data;
+        } catch (err) {
+            console.error('Error fetching user data:', err);
+            return null;
+        }
+    }, [token, API_BASE_URL]);
+
+    useEffect(() => {
+        const userIds = new Set<number>();
+        issues.forEach((issue) => {
+            if (issue.requested_by) userIds.add(issue.requested_by);
+            if (issue.approved_by) userIds.add(issue.approved_by);
+        });
+
+        const missingIds = Array.from(userIds).filter((id) => !userNameMap[id]);
+        if (missingIds.length === 0) return;
+
+        let mounted = true;
+        (async () => {
+            const entries = await Promise.all(
+                missingIds.map(async (id) => {
+                    const user = await fetchUserData(id);
+                    return [id, user?.name || ''] as const;
+                })
+            );
+            if (!mounted) return;
+            setUserNameMap((prev) => {
+                const next = { ...prev };
+                entries.forEach(([id, name]) => {
+                    next[id] = name;
+                });
+                return next;
+            });
+        })();
+
+        return () => {
+            mounted = false;
+        };
+    }, [issues, userNameMap, fetchUserData]);
+
+    const fetchStatistics = useCallback(async () => {
         if (!token) return;
 
         setStatsLoading(true);
@@ -122,9 +189,9 @@ function Dashboard() {
         } finally {
             setStatsLoading(false);
         }
-    };
+    }, [token, API_BASE_URL]);
 
-    const fetchIssues = async () => {
+    const fetchIssues = useCallback(async () => {
         if (!token) return;
 
         setIsLoading(true);
@@ -157,7 +224,34 @@ function Dashboard() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [token, API_BASE_URL, currentPage, pageSize, searchTerm]);
+
+    const handleDeleteIssue = useCallback(async (issueId: number) => {
+        if (!token) return;
+        if (!window.confirm('Delete this issue?')) return;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/issues/${issueId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to delete issue');
+            }
+            fetchIssues();
+        } catch (err) {
+            setError((err as Error).message || 'Failed to delete issue');
+        }
+    }, [API_BASE_URL, fetchIssues, token]);
+
+    useEffect(() => {
+        fetchIssues();
+        fetchStatistics();
+    }, [currentPage, searchTerm, fetchIssues, fetchStatistics]);
 
     const fetchIssueDetails = async (issueId: number) => {
         if (!token) return;
@@ -175,7 +269,7 @@ function Dashboard() {
                 throw new Error('Failed to fetch issue details');
             }
 
-            const issue = await issueRes.json();
+            const issueData = await issueRes.json();
 
             // Fetch issue items
             const itemsRes = await fetch(`${API_BASE_URL}/issue-items/issue/${issueId}`, {
@@ -189,7 +283,7 @@ function Dashboard() {
                 throw new Error('Failed to fetch issue items');
             }
 
-            const items = await itemsRes.json();
+            const itemsData = await itemsRes.json();
 
             // Fetch categories and units
             const categoriesRes = await fetch(`${API_BASE_URL}/categories?page=1&page_size=100`, {
@@ -209,21 +303,24 @@ function Dashboard() {
             const categoriesData = await categoriesRes.json();
             const unitsData = await unitsRes.json();
 
-            const categoriesMap = new Map(
-                (categoriesData || []).map((cat: Category) => [cat.id, cat.name])
-            );
+            // const categoriesMap = new Map<number, string>(
+            //     (categoriesData || []).map((cat: Category) => [cat.id, cat.name])
+            // );
 
-            const unitsMap = new Map(
+            const unitsMap = new Map<number, { name: string; symbol: string }>(
                 (unitsData.units || []).map((unit: Unit) => [
                     unit.id,
                     { name: unit.name, symbol: unit.symbol },
                 ])
             );
 
+            const issue = issueData.issue ?? issueData;
+            const items = Array.isArray(itemsData) ? itemsData : (itemsData.items || []);
+
             setSelectedIssue({
                 issue,
-                items: items || [],
-                categories: categoriesMap,
+                items,
+                categories: categoriesData,
                 units: unitsMap,
             });
         } catch (err) {
@@ -232,32 +329,93 @@ function Dashboard() {
         }
     };
 
-    const fetchUserData = async (userId: number): Promise<User | null> => {
-        if (!token) return null;
-        try {
-            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+    const handleSort = (key: keyof Issue) => {
+        setSortConfig((prev) => {
+            if (prev?.key === key) {
+                return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'asc' };
+        });
+    };
 
-            if (!response.ok) {
-                    throw new Error('Failed to fetch user data');
+    const getSortIndicator = (key: keyof Issue) => {
+        if (sortConfig?.key !== key) return '';
+        return sortConfig.direction === 'asc' ? '^' : 'v';
+    };
+
+    const filteredIssues = useMemo(() => {
+        return issues.filter((issue) => {
+            if (searchTerm && !issue.code.toLowerCase().includes(searchTerm.toLowerCase())) {
+                return false;
+            }
+            if (filters.status !== 'all') {
+                const issueStatus = (issue.status || '').toUpperCase();
+                const filterStatus = filters.status.toUpperCase();
+                if (issueStatus !== filterStatus) {
+                    return false;
                 }
+            }
+            if (filters.requestedBy) {
+                const requestedName = issue.requested_by ? (userNameMap[issue.requested_by] || '') : '';
+                if (!requestedName.toLowerCase().includes(filters.requestedBy.toLowerCase())) {
+                    return false;
+                }
+            }
+            if (filters.approvedBy) {
+                const approvedName = issue.approved_by ? (userNameMap[issue.approved_by] || '') : '';
+                if (!approvedName.toLowerCase().includes(filters.approvedBy.toLowerCase())) {
+                    return false;
+                }
+            }
+            if (filters.note && !(issue.note ?? '').toLowerCase().includes(filters.note.toLowerCase())) {
+                return false;
+            }
+            if (filters.issuedFrom || filters.issuedTo) {
+                const issuedDate = issue.issued_at ? new Date(issue.issued_at) : null;
+                if (filters.issuedFrom) {
+                    const from = new Date(filters.issuedFrom);
+                    if (issuedDate && issuedDate < from) return false;
+                    if (!issuedDate) return false;
+                }
+                if (filters.issuedTo) {
+                    const to = new Date(filters.issuedTo);
+                    if (!Number.isNaN(to.getTime())) {
+                        to.setHours(23, 59, 59, 999);
+                        if (issuedDate && issuedDate > to) return false;
+                        if (!issuedDate) return false;
+                    }
+                }
+            }
+            return true;
+        });
+    }, [issues, searchTerm, filters]);
 
-                const data = await response.json();
-                return data;
-        } catch (err) {
-            console.error('Error fetching user data:', err);
-            return null;
-        }
-    };
-
-    const handleLogout = () => {
-        logout();
-        navigate('/login');
-    };
+    const sortedIssues = useMemo(() => {
+        if (!sortConfig) return filteredIssues;
+        const data = [...filteredIssues];
+        data.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+            let result = 0;
+            if (sortConfig.key === 'issued_at') {
+                const aDate = aValue ? new Date(aValue as string).getTime() : 0;
+                const bDate = bValue ? new Date(bValue as string).getTime() : 0;
+                result = aDate - bDate;
+            } else if (aValue == null && bValue == null) {
+                result = 0;
+            } else if (aValue == null) {
+                result = 1;
+            } else if (bValue == null) {
+                result = -1;
+            } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+                result = aValue - bValue;
+            } else {
+                result = String(aValue).localeCompare(String(bValue));
+            }
+            return sortConfig.direction === 'asc' ? result : -result;
+        });
+        return data;
+    }, [filteredIssues, sortConfig]);
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
@@ -301,235 +459,319 @@ function Dashboard() {
         );
     }
 
-     return (
-        <div className="bg-light" style={{ minHeight: '100vh' }}>
-            {/* Header */}
-            <nav className="navbar navbar-dark bg-dark shadow-sm">
-                <Container fluid className="px-4">
-                    <span className="navbar-brand mb-0 h1">📦 Inventory Management System</span>
-                    <Button variant="danger" size="sm" onClick={handleLogout}>
-                        <i className="bi bi-box-arrow-right"></i> Logout
-                    </Button>
-                </Container>
-            </nav>
-
-            {/* Main Content */}
-            <Container className="py-4" fluid="lg">
-                {/* User Info Card */}
-                <Card className="mb-4 card-shadow">
-                    <Card.Body>
-                        <h5 className="mb-3">Welcome, <strong>{user.name}</strong></h5>
-                        <div>
-                            <Badge bg="primary" className="me-2">{user.role}</Badge>
-                            <Badge bg={user.active ? 'success' : 'danger'}>
-                                {user.active ? 'Active' : 'Inactive'}
-                            </Badge>
-                        </div>
-                    </Card.Body>
-                </Card>
-
-                {/* Statistics Section */}
-                {!statsLoading && statistics && (
-                    <div className="mb-4">
-                        <h4 className="mb-3">Issues Statistics</h4>
-                        <Row className="g-3">
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card total h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">📊</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Total Issues</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.total}</div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card draft h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">📝</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Draft</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.status_breakdown.draft.count}</div>
-                                        <div className="small text-muted mt-2">{statistics.status_breakdown.draft.percentage}%</div>
-                                        <div className="progress mt-2" style={{ height: '4px' }}>
-                                            <div className="progress-bar bg-warning" style={{ width: `${statistics.status_breakdown.draft.percentage}%` }}></div>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card approved h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">✅</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Approved</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.status_breakdown.approved.count}</div>
-                                        <div className="small text-muted mt-2">{statistics.status_breakdown.approved.percentage}%</div>
-                                        <div className="progress mt-2" style={{ height: '4px' }}>
-                                            <div className="progress-bar bg-info" style={{ width: `${statistics.status_breakdown.approved.percentage}%` }}></div>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card issued h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">📦</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Issued</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.status_breakdown.issued.count}</div>
-                                        <div className="small text-muted mt-2">{statistics.status_breakdown.issued.percentage}%</div>
-                                        <div className="progress mt-2" style={{ height: '4px' }}>
-                                            <div className="progress-bar bg-success" style={{ width: `${statistics.status_breakdown.issued.percentage}%` }}></div>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                            <Col md={6} lg={3}>
-                                <Card className="stat-card cancelled h-100 card-shadow">
-                                    <Card.Body>
-                                        <div className="fs-1 mb-2">❌</div>
-                                        <Card.Subtitle className="text-muted small mb-2">Cancelled</Card.Subtitle>
-                                        <div className="fs-3 fw-bold">{statistics.status_breakdown.cancelled.count}</div>
-                                        <div className="small text-muted mt-2">{statistics.status_breakdown.cancelled.percentage}%</div>
-                                        <div className="progress mt-2" style={{ height: '4px' }}>
-                                            <div className="progress-bar bg-secondary" style={{ width: `${statistics.status_breakdown.cancelled.percentage}%` }}></div>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                        </Row>
+    return (
+        <Container className="py-4" fluid>
+            {/* User Info Card */}
+            <Card className="mb-4 card-shadow">
+                <Card.Body>
+                    <h5 className="mb-3">Welcome, <strong>{user.name}</strong></h5>
+                    <div>
+                        <Badge bg="primary" className="me-2">{user.role}</Badge>
+                        <Badge bg={user.active ? 'success' : 'danger'}>
+                            {user.active ? 'Active' : 'Inactive'}
+                        </Badge>
                     </div>
-                )}
+                </Card.Body>
+            </Card>
 
-                {/* Issues Section */}
-                <Card className="card-shadow">
-                    <Card.Header className="bg-white border-bottom">
-                        <Row className="g-3 align-items-center">
-                            <Col md={6}>
-                                <h5 className="mb-0">Issues Management</h5>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-0">
-                                    <Form.Control
-                                        placeholder="Search by issue code..."
-                                        value={searchTerm}
-                                        onChange={handleSearch}
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
-                    </Card.Header>
+            {/* Statistics Section */}
+            {!statsLoading && statistics && (
+                <div className="mb-4">
+                    <h4 className="mb-3">Issues Statistics</h4>
+                    <Row className="g-3">
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card total h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">📊</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Total Issues</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.total}</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card draft h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">📝</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Draft</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.status_breakdown.draft.count}</div>
+                                    <div className="small text-muted mt-2">{statistics.status_breakdown.draft.percentage}%</div>
+                                    <div className="progress mt-2" style={{ height: '4px' }}>
+                                        <div className="progress-bar bg-warning" style={{ width: `${statistics.status_breakdown.draft.percentage}%` }}></div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card approved h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">✅</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Approved</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.status_breakdown.approved.count}</div>
+                                    <div className="small text-muted mt-2">{statistics.status_breakdown.approved.percentage}%</div>
+                                    <div className="progress mt-2" style={{ height: '4px' }}>
+                                        <div className="progress-bar bg-info" style={{ width: `${statistics.status_breakdown.approved.percentage}%` }}></div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card issued h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">📦</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Issued</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.status_breakdown.issued.count}</div>
+                                    <div className="small text-muted mt-2">{statistics.status_breakdown.issued.percentage}%</div>
+                                    <div className="progress mt-2" style={{ height: '4px' }}>
+                                        <div className="progress-bar bg-success" style={{ width: `${statistics.status_breakdown.issued.percentage}%` }}></div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col md={6} lg={3}>
+                            <Card className="stat-card cancelled h-100 card-shadow">
+                                <Card.Body>
+                                    <div className="fs-1 mb-2">❌</div>
+                                    <Card.Subtitle className="text-muted small mb-2">Cancelled</Card.Subtitle>
+                                    <div className="fs-3 fw-bold">{statistics.status_breakdown.cancelled.count}</div>
+                                    <div className="small text-muted mt-2">{statistics.status_breakdown.cancelled.percentage}%</div>
+                                    <div className="progress mt-2" style={{ height: '4px' }}>
+                                        <div className="progress-bar bg-secondary" style={{ width: `${statistics.status_breakdown.cancelled.percentage}%` }}></div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    </Row>
+                </div>
+            )}
 
-                    <Card.Body>
-                        {error && <Alert variant="danger" onClose={() => setError(null)} dismissible>{error}</Alert>}
+            {/* Issues Section */}
+            <Card className="card-shadow">
+                <Card.Header className="bg-white border-bottom">
+                    <Row className="g-3 align-items-center">
+                        <Col md={6}>
+                            <h5 className="mb-0">Issues Management</h5>
+                        </Col>
+                        <Col md={6} className="text-md-end">
+                            {(user?.role === 'ADMIN' || user?.role === 'STAFF') && (
+                                <Button variant="primary" onClick={() => navigate('/issues/new')}>
+                                    <i className="bi bi-plus-circle me-2"></i>
+                                    New Issue
+                                </Button>
+                            )}
+                        </Col>
+                    </Row>
+                </Card.Header>
 
-                        {isLoading ? (
-                            <div className="text-center py-4">
-                                <Spinner animation="border" role="status" className="me-2" />
-                                <span>Loading issues...</span>
-                            </div>
-                        ) : issues.length === 0 ? (
-                            <div className="text-center text-muted py-4">
-                                <p>No issues found</p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="table-responsive">
-                                    <Table hover bordered>
-                                        <thead className="table-light">
-                                            <tr>
-                                                <th>Issue Code</th>
-                                                <th>Status</th>
-                                                <th>Requested By</th>
-                                                <th>Approved By</th>
-                                                <th>Issued At</th>
-                                                <th>Note</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {issues.map((issue) => (
-                                                <tr
-                                                    key={issue.id}
-                                                    onClick={() => handleRowClick(issue.id)}
-                                                    style={{ cursor: 'pointer' }}
+                <Card.Body>
+                    {error && <Alert variant="danger" onClose={() => setError(null)} dismissible>{error}</Alert>}
+
+                    {isLoading ? (
+                        <div className="text-center py-4">
+                            <Spinner animation="border" role="status" className="me-2" />
+                            <span>Loading issues...</span>
+                        </div>
+                    ) : issues.length === 0 ? (
+                        <div className="text-center text-muted py-4">
+                            <p>No issues found</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="table-responsive">
+                                <Table hover bordered>
+                                    <thead className="table-light">
+                                        <tr>
+                                            <th onClick={() => handleSort('code')} style={{ cursor: 'pointer' }}>
+                                                Issue Code {getSortIndicator('code')}
+                                            </th>
+                                            <th onClick={() => handleSort('status')} style={{ cursor: 'pointer' }}>
+                                                Status {getSortIndicator('status')}
+                                            </th>
+                                            <th onClick={() => handleSort('requested_by')} style={{ cursor: 'pointer' }}>
+                                                Requested By {getSortIndicator('requested_by')}
+                                            </th>
+                                            <th onClick={() => handleSort('approved_by')} style={{ cursor: 'pointer' }}>
+                                                Approved By {getSortIndicator('approved_by')}
+                                            </th>
+                                            <th onClick={() => handleSort('issued_at')} style={{ cursor: 'pointer' }}>
+                                                Issued At {getSortIndicator('issued_at')}
+                                            </th>
+                                            <th onClick={() => handleSort('note')} style={{ cursor: 'pointer' }}>
+                                                Note {getSortIndicator('note')}
+                                            </th>
+                                            <th>Actions</th>
+                                        </tr>
+                                        <tr>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="Filter code"
+                                                    value={searchTerm}
+                                                    onChange={handleSearch}
+                                                />
+                                            </th>
+                                            <th>
+                                                <Form.Select
+                                                    size="sm"
+                                                    value={filters.status}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
                                                 >
-                                                    <td>
-                                                        <code>{issue.code}</code>
-                                                    </td>
-                                                    <td>
-                                                        <Badge bg={getStatusColor(issue.status)}>
-                                                            {issue.status}
-                                                        </Badge>
-                                                    </td>
-                                                    <td>
-                                                        {issue.requested_by ? (
-                                                            <UserName userId={issue.requested_by} fetchUserData={fetchUserData} />
-                                                        ) : (
-                                                            '-'
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        {issue.approved_by ? (
-                                                            <UserName userId={issue.approved_by} fetchUserData={fetchUserData} />
-                                                        ) : (
-                                                            '-'
-                                                        )}
-                                                    </td>
-                                                    <td>{issue.issued_at ? new Date(issue.issued_at).toLocaleDateString() : '-'}</td>
-                                                    <td className="text-truncate" style={{ maxWidth: '200px' }}>
-                                                        {issue.note || '-'}
-                                                    </td>
-                                                    <td>
+                                                    <option value="all">All</option>
+                                                    <option value="draft">DRAFT</option>
+                                                    <option value="approved">APPROVED</option>
+                                                    <option value="issued">ISSUED</option>
+                                                    <option value="cancelled">CANCELLED</option>
+                                                </Form.Select>
+                                            </th>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="User Name"
+                                                    value={filters.requestedBy}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, requestedBy: e.target.value }))}
+                                                />
+                                            </th>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="User Name"
+                                                    value={filters.approvedBy}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, approvedBy: e.target.value }))}
+                                                />
+                                            </th>
+                                            <th>
+                                                <div className="d-flex gap-1">
+                                                    <Form.Control
+                                                        size="sm"
+                                                        type="date"
+                                                        value={filters.issuedFrom}
+                                                        onChange={(e) => setFilters((prev) => ({ ...prev, issuedFrom: e.target.value }))}
+                                                    />
+                                                    <Form.Control
+                                                        size="sm"
+                                                        type="date"
+                                                        value={filters.issuedTo}
+                                                        onChange={(e) => setFilters((prev) => ({ ...prev, issuedTo: e.target.value }))}
+                                                    />
+                                                </div>
+                                            </th>
+                                            <th>
+                                                <Form.Control
+                                                    size="sm"
+                                                    placeholder="Filter note"
+                                                    value={filters.note}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, note: e.target.value }))}
+                                                />
+                                            </th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {sortedIssues.map((issue) => (
+                                            <tr
+                                                key={issue.id}
+                                                onClick={() => handleRowClick(issue.id)}
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                <td>
+                                                    <code>{issue.code}</code>
+                                                </td>
+                                                <td>
+                                                    <Badge bg={getStatusColor(issue.status)}>
+                                                        {issue.status}
+                                                    </Badge>
+                                                </td>
+                                                <td>
+                                                    {issue.requested_by ? (
+                                                        <UserName userId={issue.requested_by} fetchUserData={fetchUserData} />
+                                                    ) : (
+                                                        '-'
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {issue.approved_by ? (
+                                                        <UserName userId={issue.approved_by} fetchUserData={fetchUserData} />
+                                                    ) : (
+                                                        '-'
+                                                    )}
+                                                </td>
+                                                <td>{issue.issued_at ? new Date(issue.issued_at).toLocaleDateString() : '-'}</td>
+                                                <td className="text-truncate" style={{ maxWidth: '200px' }}>
+                                                    {issue.note || '-'}
+                                                </td>
+                                                <td onClick={(e) => e.stopPropagation()}>
+                                                    <div className="d-flex gap-1">
                                                         <Button
-                                                            variant="primary"
+                                                            variant="outline-primary"
                                                             size="sm"
-                                                            onClick={(e) => { e.stopPropagation(); navigate(`/issues/${issue.id}/items`); }}
+                                                            className="me-2"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                navigate(`/issues/${issue.id}/edit`);
+                                                            }}
+                                                            title="Edit"
                                                         >
-                                                            <i className="bi bi-eye"></i> View
+                                                            <i className="bi bi-pencil me-1"></i>
+                                                            
                                                         </Button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </Table>
-                                </div>
+                                                        {user?.role === 'ADMIN' && (
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteIssue(issue.id);
+                                                                }}
+                                                                title="Delete"
+                                                            >
+                                                                <i className="bi bi-trash me-1"></i>
+                                                                
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </Table>
+                            </div>
 
-                                {/* Pagination */}
-                                <nav className="mt-4" aria-label="Page navigation">
-                                    <Pagination className="justify-content-center">
-                                        <Pagination.First
-                                            onClick={() => setCurrentPage(1)}
-                                            disabled={currentPage === 1}
-                                        />
-                                        <Pagination.Prev
-                                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                                            disabled={currentPage === 1}
-                                        />
-                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                            const pageNum = currentPage > 2 ? currentPage - 2 + i : i + 1;
-                                            return (
-                                                <Pagination.Item
-                                                    key={pageNum}
-                                                    active={pageNum === currentPage}
-                                                    onClick={() => setCurrentPage(pageNum)}
-                                                >
-                                                    {pageNum}
-                                                </Pagination.Item>
-                                            );
-                                        })}
-                                        <Pagination.Next
-                                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                                            disabled={currentPage === totalPages}
-                                        />
-                                        <Pagination.Last
-                                            onClick={() => setCurrentPage(totalPages)}
-                                            disabled={currentPage === totalPages}
-                                        />
-                                    </Pagination>
-                                </nav>
-                            </>
-                        )}
-                    </Card.Body>
-                </Card>
-            </Container>
+                            {/* Pagination */}
+                            <nav className="mt-4" aria-label="Page navigation">
+                                <Pagination className="justify-content-center">
+                                    <Pagination.First
+                                        onClick={() => setCurrentPage(1)}
+                                        disabled={currentPage === 1}
+                                    />
+                                    <Pagination.Prev
+                                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                        disabled={currentPage === 1}
+                                    />
+                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                        const pageNum = currentPage > 2 ? currentPage - 2 + i : i + 1;
+                                        return (
+                                            <Pagination.Item
+                                                key={pageNum}
+                                                active={pageNum === currentPage}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                            >
+                                                {pageNum}
+                                            </Pagination.Item>
+                                        );
+                                    })}
+                                    <Pagination.Next
+                                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                        disabled={currentPage === totalPages}
+                                    />
+                                    <Pagination.Last
+                                        onClick={() => setCurrentPage(totalPages)}
+                                        disabled={currentPage === totalPages}
+                                    />
+                                </Pagination>
+                            </nav>
+                        </>
+                    )}
+                </Card.Body>
+            </Card>
 
             {/* Modal */}
             <Modal show={!!selectedIssue} onHide={() => setSelectedIssue(null)} size="lg">
@@ -603,6 +845,7 @@ function Dashboard() {
                                                     <td><code>{item.item_sku || '-'}</code></td>
                                                     <td>{item.item_name || '-'}</td>
                                                     <td>{item.qty ? parseFloat(item.qty.toString()).toFixed(1) : '0.0'}</td>
+                                                    <td>{item.unit_name || '-'}</td>
                                                     <td>-</td>
                                                 </tr>
                                             ))}
@@ -619,7 +862,7 @@ function Dashboard() {
                     </>
                 )}
             </Modal>
-        </div>
+        </Container>
     );
 }
 

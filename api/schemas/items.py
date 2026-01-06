@@ -10,7 +10,7 @@ class Item(BaseModel):
     category_id: int = Field(..., description="The category ID the item belongs to")
     unit_id: int = Field(..., description="The unit ID for the item")
     owner_user_id: int = Field(..., description="The user ID of the item's owner")
-    barcode: Optional[str] = Field(None, description="The barcode of the item")
+    qrcode: Optional[str] = Field(None, description="The QR code of the item")
     min_stock: float = Field(0.0, description="The minimum stock level for the item")
     image_url: Optional[str] = Field(None, description="The URL of the item's image")
     active: bool = Field(True, description="Indicates if the item is active")
@@ -21,7 +21,7 @@ class ItemCreate(BaseModel):
     category_id: int = Field(..., description="The category ID the item belongs to")
     unit_id: int = Field(..., description="The unit ID for the item")
     owner_user_id: Optional[int] = Field(..., description="The user ID of the item's owner")
-    barcode: Optional[str] = Field(None, max_length=100, description="The barcode of the item")
+    qrcode: Optional[str] = Field(None, max_length=100, description="The QR code of the item")
     min_stock: Optional[float] = Field(0.0, ge=0.0, description="The minimum stock level for the item")
     image_url: Optional[str] = Field(None, description="The URL of the item's image")
     active: Optional[bool] = Field(True, description="Indicates if the item is active")
@@ -39,7 +39,7 @@ class ItemUpdate(BaseModel):
     category_id: Optional[int] = None
     unit_id: Optional[int] = None
     owner_user_id: Optional[int] = None
-    barcode: Optional[str] = Field(None, max_length=100, description="The barcode of the item")
+    qrcode: Optional[str] = Field(None, max_length=100, description="The QR code of the item")
     min_stock: Optional[float] = Field(None, ge=0.0, description="The minimum stock level for the item")
     image_url: Optional[str] = Field(None, description="The URL of the item's image")
     active: Optional[bool] = None
@@ -55,9 +55,16 @@ class ItemUpdate(BaseModel):
     
 class ItemResponse(BaseModel):
     id: int
-    owner_user_id: Optional[int] = None
-    created_at: Optional[datetime] = None
+    sku: str
+    name: str
+    category_id: Optional[int] = None
     unit_id: Optional[int] = None
+    owner_user_id: Optional[int] = None
+    qrcode: Optional[str] = None
+    min_stock: float = 0.0
+    image_url: Optional[str] = None
+    active: bool = True
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
