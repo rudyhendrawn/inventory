@@ -8,7 +8,7 @@ interface IssueItem {
     issue_id: number;
     item_id: number;
     qty: number;
-    item_sku?: string;
+    item_code?: string;
     item_name?: string;
     category_id?: number;
     category_name?: string | { id: number; name: string };
@@ -45,7 +45,7 @@ function IssueDetailsPage() {
     const [issueDetails, setIssueDetails] = useState<IssueDetailsData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [sortBy, setSortBy] = useState<'name' | 'sku' | 'qty' | 'category'>('name');
+    const [sortBy, setSortBy] = useState<'name' | 'item_code' | 'qty' | 'category'>('name');
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [requestedByName, setRequestedByName] = useState<string>('');
     const [approvedByName, setApprovedByName] = useState<string>('');
@@ -69,19 +69,29 @@ function IssueDetailsPage() {
         const loadUserNames = async () => {
             if (!issueDetails) return;
 
-            if (issueDetails.issue.requested_by && typeof issueDetails.issue.requested_by === 'number') {
-                const userData = await fetchUserData(issueDetails.issue.requested_by);
+            const requestedBy = issueDetails.issue.requested_by;
+            if (requestedBy && typeof requestedBy === 'object') {
+                setRequestedByName(requestedBy.name || `User #${requestedBy.id ?? ''}`.trim());
+            } else if (requestedBy && typeof requestedBy === 'number') {
+                const userData = await fetchUserData(requestedBy);
                 if (userData) {
-                    setRequestedByName(userData.name || `User #${issueDetails.issue.requested_by}`);
+                    setRequestedByName(userData.name || `User #${requestedBy}`);
                 }
+            } else {
+                setRequestedByName('');
             }
 
             // Fetch approved_by user name
-            if (issueDetails.issue.approved_by && typeof issueDetails.issue.approved_by === 'number') {
-                const userData = await fetchUserData(issueDetails.issue.approved_by);
+            const approvedBy = issueDetails.issue.approved_by;
+            if (approvedBy && typeof approvedBy === 'object') {
+                setApprovedByName(approvedBy.name || `User #${approvedBy.id ?? ''}`.trim());
+            } else if (approvedBy && typeof approvedBy === 'number') {
+                const userData = await fetchUserData(approvedBy);
                 if (userData) {
-                    setApprovedByName(userData.name || `User #${issueDetails.issue.approved_by}`);
+                    setApprovedByName(userData.name || `User #${approvedBy}`);
                 }
+            } else {
+                setApprovedByName('');
             }
         };
         loadUserNames();
@@ -165,8 +175,8 @@ function IssueDetailsPage() {
             case 'name':
                 sorted.sort((a, b) => (a.item_name || '').localeCompare(b.item_name || ''));
                 break;
-            case 'sku':
-                sorted.sort((a, b) => (a.item_sku || '').localeCompare(b.item_sku || ''));
+            case 'item_code':
+                sorted.sort((a, b) => (a.item_code || '').localeCompare(b.item_code || ''));
                 break;
             case 'qty':
                 sorted.sort((a, b) => b.qty - a.qty);
@@ -222,6 +232,9 @@ function IssueDetailsPage() {
         if (userName) return userName;
         if (typeof user === 'number') return `User #${user}`;
         if (typeof user === 'string') return user;
+        if (typeof user === 'object' && user !== null) {
+            return user.name ?? `User #${user.id ?? ''}`.trim();
+        }
         return '-';
     };       
 
@@ -390,11 +403,11 @@ function IssueDetailsPage() {
                                     <Form.Select
                                         value={sortBy}
                                         onChange={(e) =>
-                                            setSortBy(e.target.value as 'name' | 'sku' | 'qty' | 'category')
+                                            setSortBy(e.target.value as 'name' | 'item_code' | 'qty' | 'category')
                                         }
                                     >
                                         <option value="name">Item Name</option>
-                                        <option value="sku">SKU</option>
+                                        <option value="item_code">Item Code</option>
                                         <option value="qty">Quantity</option>
                                         <option value="category">Category</option>
                                     </Form.Select>
@@ -438,7 +451,7 @@ function IssueDetailsPage() {
                                 <Table hover striped bordered className="mb-0">
                                     <thead className="table-light">
                                         <tr>
-                                            <th>SKU</th>
+                                            <th>Item Code</th>
                                             <th>Item Name</th>
                                             <th>Category</th>
                                             <th>Quantity</th>
@@ -451,7 +464,7 @@ function IssueDetailsPage() {
                                         {sortedItems.map((item) => (
                                             <tr key={`item-${item.id}`}>
                                                 <td>
-                                                    <code className="text-primary">{item.item_sku || '-'}</code>
+                                                    <code className="text-primary">{item.item_code || '-'}</code>
                                                 </td>
                                                 <td>{item.item_name || '-'}</td>
                                                 <td>

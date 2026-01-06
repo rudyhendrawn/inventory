@@ -33,12 +33,13 @@ interface IssueSelectOption {
 }
 
 interface ItemFormState {
-    sku: string;
+    item_code: string;
     name: string;
     category_id: string;
     unit_id: string;
     owner_user_id: string;
     qrcode: string;
+    description: string;
     min_stock: string;
     image_url: string;
     active: boolean;
@@ -57,12 +58,13 @@ function ItemFormPage() {
     const [issues, setIssues] = useState<IssueOption[]>([]);
     const [issueId, setIssueId] = useState('');
     const [form, setForm] = useState<ItemFormState>({
-        sku: '',
+        item_code: '',
         name: '',
         category_id: '',
         unit_id: '',
         owner_user_id: '',
         qrcode: '',
+        description: '',
         min_stock: '0',
         image_url: '',
         active: true,
@@ -152,12 +154,13 @@ function ItemFormPage() {
                 }
                 const data = await response.json();
                 setForm({
-                    sku: data.sku || '',
+                    item_code: data.item_code || '',
                     name: data.name || '',
                     category_id: data.category_id ? String(data.category_id) : '',
                     unit_id: data.unit_id ? String(data.unit_id) : '',
                     owner_user_id: data.owner_user_id ? String(data.owner_user_id) : '',
                     qrcode: data.qrcode || '',
+                    description: data.description || '',
                     min_stock: typeof data.min_stock === 'number' ? String(data.min_stock) : '0',
                     image_url: data.image_url || '',
                     active: Boolean(data.active),
@@ -196,12 +199,13 @@ function ItemFormPage() {
         setError(null);
 
         const payload = {
-            sku: form.sku.trim(),
+            item_code: form.item_code.trim(),
             name: form.name.trim(),
             category_id: Number(form.category_id),
             unit_id: Number(form.unit_id),
             owner_user_id: form.owner_user_id ? Number(form.owner_user_id) : null,
             qrcode: form.qrcode.trim() || null,
+            description: form.description.trim() || null,
             min_stock: Number(form.min_stock || 0),
             image_url: form.image_url.trim() || null,
             active: form.active,
@@ -298,10 +302,10 @@ function ItemFormPage() {
                                 </Col>
                                 <Col md={6}>
                                     <Form.Group>
-                                        <Form.Label>SKU</Form.Label>
+                                        <Form.Label>Item Code</Form.Label>
                                         <Form.Control
-                                            value={form.sku}
-                                            onChange={(e) => handleChange('sku', e.target.value)}
+                                            value={form.item_code}
+                                            onChange={(e) => handleChange('item_code', e.target.value)}
                                             required
                                         />
                                     </Form.Group>
@@ -372,6 +376,17 @@ function ItemFormPage() {
                                         <Form.Control
                                             value={form.qrcode}
                                             onChange={(e) => handleChange('qrcode', e.target.value)}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                                <Col md={12}>
+                                    <Form.Group>
+                                        <Form.Label>Description</Form.Label>
+                                        <Form.Control
+                                            as="textarea"
+                                            rows={4}
+                                            value={form.description}
+                                            onChange={(e) => handleChange('description', e.target.value)}
                                         />
                                     </Form.Group>
                                 </Col>

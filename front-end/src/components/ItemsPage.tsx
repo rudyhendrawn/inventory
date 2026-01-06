@@ -20,13 +20,15 @@ import { downloadQRCodesPDF } from '../utils/qrPdfGenerators';
 
 interface Item {
     id: number;
-    sku: string;
+    item_code: string;
     name: string;
     category_id: number;
     unit_id: number;
     owner_user_id: number | null;
+    serial_number: string | null;
     qrcode: string | null;
     min_stock: number;
+    description: string | null;
     image_url: string | null;
     active: boolean;
     created_at?: string;
@@ -66,11 +68,10 @@ function ItemsPage() {
     const [showModal, setShowModal] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: keyof Item; direction: 'asc' | 'desc' } | null>(null);
     const [filters, setFilters] = useState({
-        sku: '',
+        item_code: '',
         name: '',
-        qrcode: '',
+        description: '',
         minStockMin: '',
-        minStockMax: '',
         status: 'all',
     });
     const [showQRModal, setShowQRModal] = useState(false);
@@ -142,7 +143,7 @@ function ItemsPage() {
     const generateQRData = (item: Item): string => {
         const qrInfo = {
             item_id: item.id,
-            sku: item.sku,
+            item_code: item.item_code,
             name: item.name,
             category: getCategoryName(item.category_id),
             owner: getUserName(item.owner_user_id),
@@ -176,7 +177,7 @@ function ItemsPage() {
 
         const link = document.createElement('a');
         link.href = qrDataUrl;
-        link.download = `QR_${selectedItemForQR.sku}_${selectedItemForQR.name.replace(/\s+/g, '_')}.png`;
+        link.download = `QR_${selectedItemForQR.item_code}_${selectedItemForQR.name.replace(/\s+/g, '_')}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -222,7 +223,7 @@ function ItemsPage() {
                     }
                 });
                 return { 
-                    sku: item.sku, 
+                    item_code: item.item_code, 
                     name: item.name,
                     dataUrl 
                 };
@@ -327,14 +328,14 @@ function ItemsPage() {
 
     const filteredItems = useMemo(() => {
         return items.filter((item) => {
-            if (filters.sku && !item.sku.toLowerCase().includes(filters.sku.toLowerCase())) {
+            if (filters.item_code && !item.item_code.toLowerCase().includes(filters.item_code.toLowerCase())) {
                 return false;
             }
             if (filters.name && !item.name.toLowerCase().includes(filters.name.toLowerCase())) {
                 return false;
             }
-            const qrcodeValue = item.qrcode ?? '';
-            if (filters.qrcode && !qrcodeValue.toLowerCase().includes(filters.qrcode.toLowerCase())) {
+            const descriptionValue = item.description ?? '';
+            if (filters.description && !descriptionValue.toLowerCase().includes(filters.description.toLowerCase())) {
                 return false;
             }
             if (filters.status !== 'all') {
@@ -345,12 +346,6 @@ function ItemsPage() {
             if (filters.minStockMin) {
                 const min = Number(filters.minStockMin);
                 if (!Number.isNaN(min) && (typeof item.min_stock !== 'number' || item.min_stock < min)) {
-                    return false;
-                }
-            }
-            if (filters.minStockMax) {
-                const max = Number(filters.minStockMax);
-                if (!Number.isNaN(max) && (typeof item.min_stock !== 'number' || item.min_stock > max)) {
                     return false;
                 }
             }
@@ -471,18 +466,18 @@ function ItemsPage() {
                             </div>
                         ) : (
                             <div className="table-responsive">
-                                <Table hover className="mb-0">
+                                <Table hover className="mb-0 align-middle">
                                     <thead className="table-light">
                                         <tr>
                                             <th style={{ width: '120px' }}>QR Code</th>
-                                            <th onClick={() => handleSort('sku')} style={{ cursor: 'pointer' }}>
-                                                SKU {getSortIndicator('sku')}
+                                            <th onClick={() => handleSort('item_code')} style={{ cursor: 'pointer', width: '140px' }}>
+                                                Item Code {getSortIndicator('item_code')}
                                             </th>
-                                            <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+                                            <th onClick={() => handleSort('name')} style={{ cursor: 'pointer', width: '220px' }}>
                                                 Name {getSortIndicator('name')}
                                             </th>
-                                            <th onClick={() => handleSort('qrcode')} style={{ cursor: 'pointer' }}>
-                                                QR Data {getSortIndicator('qrcode')}
+                                            <th onClick={() => handleSort('description')} style={{ cursor: 'pointer' }}>
+                                                Description {getSortIndicator('description')}
                                             </th>
                                             <th onClick={() => handleSort('min_stock')} style={{ cursor: 'pointer' }}>
                                                 Min Stock {getSortIndicator('min_stock')}
@@ -490,16 +485,16 @@ function ItemsPage() {
                                             <th onClick={() => handleSort('active')} style={{ cursor: 'pointer' }}>
                                                 Status {getSortIndicator('active')}
                                             </th>
-                                            <th>Actions</th>
+                                            <th style={{ width: '180px' }}>Actions</th>
                                         </tr>
                                         <tr>
                                             <th></th>
                                             <th>
                                                 <Form.Control
                                                     size="sm"
-                                                    placeholder="Filter SKU"
-                                                    value={filters.sku}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, sku: e.target.value }))}
+                                                    placeholder="Filter Item Code"
+                                                    value={filters.item_code}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, item_code: e.target.value }))}
                                                 />
                                             </th>
                                             <th>
@@ -513,9 +508,9 @@ function ItemsPage() {
                                             <th>
                                                 <Form.Control
                                                     size="sm"
-                                                    placeholder="Filter QR Data"
-                                                    value={filters.qrcode}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, qrcode: e.target.value }))}
+                                                    placeholder="Filter description"
+                                                    value={filters.description}
+                                                    onChange={(e) => setFilters((prev) => ({ ...prev, description: e.target.value }))}
                                                 />
                                             </th>
                                             <th>
@@ -528,15 +523,6 @@ function ItemsPage() {
                                                         placeholder="Min"
                                                         value={filters.minStockMin}
                                                         onChange={(e) => setFilters((prev) => ({ ...prev, minStockMin: e.target.value }))}
-                                                    />
-                                                    <Form.Control
-                                                        size="sm"
-                                                        type="number"
-                                                        step="1"
-                                                        min="0"
-                                                        placeholder="Max"
-                                                        value={filters.minStockMax}
-                                                        onChange={(e) => setFilters((prev) => ({ ...prev, minStockMax: e.target.value }))}
                                                     />
                                                 </div>
                                             </th>
@@ -571,20 +557,21 @@ function ItemsPage() {
                                                         Generate
                                                     </Button>
                                                 </td>
-                                                <td>
+                                                <td style={{ whiteSpace: 'nowrap' }}>
                                                     <code className="text-primary fw-bold">
-                                                        {item.sku}
+                                                        {item.item_code}
                                                     </code>
                                                 </td>
-                                                <td className="fw-semibold">{item.name}</td>
+                                                <td className="fw-semibold text-truncate" style={{ maxWidth: '220px' }}>
+                                                    {item.name}
+                                                </td>
                                                 <td>
-                                                    {item.qrcode ? (
-                                                        <code className="text-secondary">
-                                                            {item.qrcode}
-                                                        </code>
-                                                    ) : (
-                                                        <span className="text-muted">-</span>
-                                                    )}
+                                                    <span title={item.description || '-'}>
+                                                        {item.description
+                                                            ? item.description.substring(0, 40) +
+                                                              (item.description.length > 40 ? '...' : '')
+                                                            : '-'}
+                                                    </span>
                                                 </td>
                                                 <td>
                                                     <Badge bg="info">
@@ -598,7 +585,7 @@ function ItemsPage() {
                                                         {item.active ? 'Active' : 'Inactive'}
                                                     </Badge>
                                                 </td>
-                                                <td onClick={(e) => e.stopPropagation()}>
+                                                <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                                                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
                                                         <>
                                                             <Button
@@ -687,7 +674,7 @@ function ItemsPage() {
                                 <Card.Body>
                                     <h6 className="mb-3">QR Code contains:</h6>
                                     <p className="mb-1"><strong>Item ID:</strong> {selectedItemForQR.id}</p>
-                                    <p className="mb-1"><strong>SKU:</strong> {selectedItemForQR.sku}</p>
+                                    <p className="mb-1"><strong>Item Code:</strong> {selectedItemForQR.item_code}</p>
                                     <p className="mb-1"><strong>Name:</strong> {selectedItemForQR.name}</p>
                                     <p className="mb-1"><strong>Category:</strong> {getCategoryName(selectedItemForQR.category_id)}</p>
                                     <p className="mb-1"><strong>Owner:</strong> {getUserName(selectedItemForQR.owner_user_id)}</p>
@@ -719,8 +706,8 @@ function ItemsPage() {
                             <Col md={4} key={item.id}>
                                 <Card>
                                     <Card.Body className="text-center">
-                                        <img src={dataUrl} alt={`QR Code for ${item.sku}`} className="img-fluid mb-2" style={{ maxWidth: '200px' }} />
-                                        <h6 className="mb-1">{item.sku}</h6>
+                                        <img src={dataUrl} alt={`QR Code for ${item.item_code}`} className="img-fluid mb-2" style={{ maxWidth: '200px' }} />
+                                        <h6 className="mb-1">{item.item_code}</h6>
                                         <p className="text-muted small mb-0">{item.name}</p>
                                     </Card.Body>
                                 </Card>
@@ -748,8 +735,12 @@ function ItemsPage() {
                     {selectedItem && (
                         <Row className="g-3">
                             <Col md={6}>
-                                <strong>SKU:</strong>
-                                <p><code className="text-primary">{selectedItem.sku}</code></p>
+                                <strong>Item Code:</strong>
+                                <p><code className="text-primary">{selectedItem.item_code}</code></p>
+                            </Col>
+                            <Col md={6}>
+                                <strong>Serial Number:</strong>
+                                <p><code className="text-primary">{selectedItem.serial_number || '-'}</code></p>
                             </Col>
                             <Col md={6}>
                                 <strong>Name:</strong>
@@ -766,6 +757,10 @@ function ItemsPage() {
                             <Col md={6}>
                                 <strong>QR Data:</strong>
                                 <p>{selectedItem.qrcode || '-'}</p>
+                            </Col>
+                            <Col md={6}>
+                                <strong>Description:</strong>
+                                <p>{selectedItem.description || '-'}</p>
                             </Col>
                             <Col md={6}>
                                 <strong>Minimum Stock:</strong>

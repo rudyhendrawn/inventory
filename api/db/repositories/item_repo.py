@@ -23,7 +23,7 @@ class ItemRepository:
                 params.append(True)
 
             search_term = DatabaseUtils.sanitize_search_term(search)
-            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["sku", "name"])
+            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["item_code", "name"])
             if search_condition:
                 conditions.append(search_condition)
                 params.extend(search_params)
@@ -31,7 +31,10 @@ class ItemRepository:
             where_clause, params = QueryBuilder.build_where_clause(conditions, params)
 
             query = f"""
-                SELECT id, sku, name, category_id, unit_id, owner_user_id, qrcode, min_stock, image_url, active
+                SELECT 
+                    id, item_code, name, category_id, unit_id, 
+                    owner_user_id, serial_number, min_stock, 
+                    description, image_url, active
                 FROM items
                 {where_clause}
                 ORDER BY name
@@ -52,7 +55,9 @@ class ItemRepository:
             DatabaseUtils.validate_id(item_id, "Item")
             
             query = """
-                SELECT id, sku, name, category_id, unit_id, owner_user_id, qrcode, min_stock, image_url, active
+                SELECT 
+                    id, item_code, serial_number, name, category_id, unit_id, 
+                    owner_user_id, min_stock, description, image_url, active
                 FROM items
                 WHERE id = %s
                 """
@@ -61,19 +66,19 @@ class ItemRepository:
             raise RuntimeError(str(e))
 
     @staticmethod
-    def get_by_sku(sku: str) -> Optional[Dict[str, Any]]:
+    def get_by_item_code(item_code: str) -> Optional[Dict[str, Any]]:
         """
-        Get an item by its SKU.
+        Get an item by its item code.
         """
         try:
-            DatabaseUtils.validate_string(sku, "sku")
+            DatabaseUtils.validate_string(item_code, "item_code")
             
             query = """
-                SELECT id, sku, name, category_id, unit_id, owner_user_id, qrcode, min_stock, image_url, active
+                SELECT id, item_code, name, category_id, unit_id, owner_user_id, serial_number, min_stock, description, image_url, active
                 FROM items
-                WHERE sku = %s
+                WHERE item_code = %s
                 """
-            return fetch_one(query, (sku.strip().upper(),))
+            return fetch_one(query, (item_code.strip().upper(),))
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -85,22 +90,23 @@ class ItemRepository:
         """
         try:
             query = """
-                INSERT INTO items (sku, name, category_id, unit_id, owner_user_id, qrcode, min_stock, image_url, active)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO items (item_code, serial_number, name, category_id, unit_id, owner_user_id, min_stock, description, image_url, active)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
             execute(query, (
-                item_data.sku.strip().upper(),
+                item_data.item_code.strip().upper(),
+                item_data.serial_number,
                 item_data.name,
                 item_data.category_id,
                 item_data.unit_id,
                 item_data.owner_user_id,
-                item_data.qrcode,
                 item_data.min_stock,
+                item_data.description,
                 item_data.image_url,
                 item_data.active,
             ))
             
-            return ItemRepository.get_by_sku(item_data.sku)
+            return ItemRepository.get_by_item_code(item_data.item_code)
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -115,9 +121,12 @@ class ItemRepository:
             set_clauses = []
             params = []
 
-            if item_data.sku is not None:
-                set_clauses.append("sku = %s")
-                params.append(item_data.sku.strip().upper())
+            if item_data.item_code is not None:
+                set_clauses.append("item_code = %s")
+                params.append(item_data.item_code.strip().upper())
+            if item_data.serial_number is not None:
+                set_clauses.append("serial_number = %s")
+                params.append(item_data.serial_number)
             if item_data.name is not None:
                 set_clauses.append("name = %s")
                 params.append(item_data.name)
@@ -130,12 +139,12 @@ class ItemRepository:
             if item_data.owner_user_id is not None:
                 set_clauses.append("owner_user_id = %s")
                 params.append(item_data.owner_user_id)
-            if item_data.qrcode is not None:
-                set_clauses.append("qrcode = %s")
-                params.append(item_data.qrcode)
             if item_data.min_stock is not None:
                 set_clauses.append("min_stock = %s")
                 params.append(item_data.min_stock)
+            if item_data.description is not None:
+                set_clauses.append("description = %s")
+                params.append(item_data.description)
             if item_data.image_url is not None:
                 set_clauses.append("image_url = %s")
                 params.append(item_data.image_url)
@@ -203,18 +212,18 @@ class ItemRepository:
             raise RuntimeError(str(e))
 
     @staticmethod
-    def exists_by_sku(sku: str, exclude_id: Optional[int] = None) -> bool:
+    def exists_by_item_code(item_code: str, exclude_id: Optional[int] = None) -> bool:
         """
-        Check if an item exists by its SKU.
+        Check if an item exists by its item code.
         """
         try:
-            DatabaseUtils.validate_string(sku, "sku")
+            DatabaseUtils.validate_string(item_code, "item_code")
             if exclude_id is not None:
                 DatabaseUtils.validate_id(exclude_id, "Item")
             return BaseRepository.exists_by_field(
                 DatabaseConstants.TABLE_ITEMS,
-                "sku",
-                sku.strip().upper(),
+                "item_code",
+                item_code.strip().upper(),
                 exclude_id
             )
         except Exception as e:

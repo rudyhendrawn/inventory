@@ -31,7 +31,7 @@ class IssueItemRepository:
                     ii.issue_id,
                     ii.item_id,
                     ii.qty,
-                    i.sku AS item_sku,
+                    i.item_code AS item_code,
                     i.name AS item_name
                 FROM issue_items ii
                 LEFT JOIN items i ON ii.item_id = i.id
@@ -57,7 +57,7 @@ class IssueItemRepository:
                     ii.issue_id,
                     ii.item_id,
                     ii.qty,
-                    i.sku AS item_sku,
+                    i.item_code AS item_code,
                     i.name AS item_name
                 FROM issue_items ii
                 LEFT JOIN items i ON ii.item_id = i.id
@@ -80,7 +80,7 @@ class IssueItemRepository:
                     ii.issue_id,
                     ii.item_id,
                     ii.qty,
-                    i.sku as item_sku,
+                    i.item_code as item_code,
                     i.name as item_name,
                     i.unit_id,
                     u.symbol as unit_symbol

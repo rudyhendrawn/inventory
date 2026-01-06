@@ -29,13 +29,14 @@ CREATE TABLE units (
 
 CREATE TABLE items (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  sku VARCHAR(40) NOT NULL UNIQUE,
+  item_code VARCHAR(20) NOT NULL UNIQUE,
+  serial_number VARCHAR(30) UNIQUE,
   name VARCHAR(160) NOT NULL,
   category_id BIGINT NOT NULL,
   unit_id BIGINT NOT NULL,
   owner_user_id BIGINT NULL,
-  qrcode VARCHAR(64),
   min_stock DECIMAL(18,6) NOT NULL DEFAULT 0,
+  description VARCHAR(500),
   image_url VARCHAR(255),
   active TINYINT(1) NOT NULL DEFAULT 1,
   CONSTRAINT fk_items_category FOREIGN KEY (category_id) REFERENCES categories(id),

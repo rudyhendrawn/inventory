@@ -33,7 +33,8 @@ interface IssueItem {
     issue_id: number;
     item_id: number;
     qty: number;
-    item_sku?: string;
+    item_code?: string;
+    serial_number?: string;
     item_name?: string;
     category_id?: number;
     category_name?: { id: number; name: string };
@@ -190,6 +191,11 @@ function Dashboard() {
             setStatsLoading(false);
         }
     }, [token, API_BASE_URL]);
+
+    const getUserNameById = (userId?: number) => {
+        if (!userId) return '-';
+        return userNameMap[userId] || `User #${userId}`;
+    };
 
     const fetchIssues = useCallback(async () => {
         if (!token) return;
@@ -388,7 +394,7 @@ function Dashboard() {
             }
             return true;
         });
-    }, [issues, searchTerm, filters]);
+    }, [issues, searchTerm, filters, userNameMap]);
 
     const sortedIssues = useMemo(() => {
         if (!sortConfig) return filteredIssues;
@@ -577,7 +583,7 @@ function Dashboard() {
                     ) : (
                         <>
                             <div className="table-responsive">
-                                <Table hover bordered>
+                                <Table hover bordered className="align-middle">
                                     <thead className="table-light">
                                         <tr>
                                             <th onClick={() => handleSort('code')} style={{ cursor: 'pointer' }}>
@@ -711,7 +717,7 @@ function Dashboard() {
                                                             title="Edit"
                                                         >
                                                             <i className="bi bi-pencil me-1"></i>
-                                                            
+                                                            Edit
                                                         </Button>
                                                         {user?.role === 'ADMIN' && (
                                                             <Button
@@ -724,7 +730,7 @@ function Dashboard() {
                                                                 title="Delete"
                                                             >
                                                                 <i className="bi bi-trash me-1"></i>
-                                                                
+                                                                Delete
                                                             </Button>
                                                         )}
                                                     </div>
@@ -800,13 +806,13 @@ function Dashboard() {
                                 <Col md={6}>
                                     <div>
                                         <small className="text-muted d-block">Requested By</small>
-                                        {selectedIssue.issue.requested_by || '-'}
+                                        {getUserNameById(selectedIssue.issue.requested_by)}
                                     </div>
                                 </Col>
                                 <Col md={6}>
                                     <div>
                                         <small className="text-muted d-block">Approved By</small>
-                                        {selectedIssue.issue.approved_by || '-'}
+                                        {getUserNameById(selectedIssue.issue.approved_by)}
                                     </div>
                                 </Col>
                                 <Col md={6}>
@@ -830,11 +836,12 @@ function Dashboard() {
                                 <p className="text-muted text-center py-3">No items in this issue</p>
                             ) : (
                                 <div className="table-responsive">
-                                    <Table striped bordered hover size="sm">
+                                    <Table striped bordered hover size="sm" className="align-middle">
                                         <thead className="table-light">
                                             <tr>
-                                                <th>SKU</th>
+                                                <th>Item Code</th>
                                                 <th>Item Name</th>
+                                                <th>Serial Number</th>
                                                 <th>Quantity</th>
                                                 <th>Unit</th>
                                             </tr>
@@ -842,10 +849,11 @@ function Dashboard() {
                                         <tbody>
                                             {selectedIssue.items.map((item) => (
                                                 <tr key={item.id}>
-                                                    <td><code>{item.item_sku || '-'}</code></td>
+                                                    <td><code>{item.item_code || '-'}</code></td>
                                                     <td>{item.item_name || '-'}</td>
+                                                    <td>{item.serial_number || '-'}</td>
                                                     <td>{item.qty ? parseFloat(item.qty.toString()).toFixed(1) : '0.0'}</td>
-                                                    <td>{item.unit_name || '-'}</td>
+                                                    <td>{item.unit_symbol || '-'}</td>
                                                     <td>-</td>
                                                 </tr>
                                             ))}

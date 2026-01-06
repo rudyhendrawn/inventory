@@ -268,7 +268,7 @@ function UsersPage() {
                             </div>
                         ) : (
                             <div className="table-responsive">
-                                <Table hover className="mb-0">
+                                <Table hover className="mb-0 align-middle">
                                     <thead className="table-light">
                                         <tr>
                                             <th onClick={() => handleSort('id')} style={{ cursor: 'pointer' }}>
