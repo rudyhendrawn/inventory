@@ -1,65 +1,60 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Save, Info, Cpu, HardDrive, MemoryStick } from 'lucide-react';
 import {
-    Container,
-    Row,
-    Col,
-    Card,
-    Form,
     Button,
+    Card,
+    CardHeader,
+    CardBody,
+    CardFooter,
     Alert,
     Spinner,
-    Badge,
-    Table
-} from 'react-bootstrap';
+    FormInput,
+    FormCheckbox,
+} from './UI';
 
-interface Settings {
-    id: number;
+interface SettingsState {
     app_name: string;
-    items_per_page: number;
+    items_per_page: string;
     allow_negative_stock: boolean;
     auto_backup_enabled: boolean;
-    backup_retention_days: number;
-    low_stock_threshold: number;
+    backup_retention_days: string;
+    low_stock_threshold: string;
     enable_notifications: boolean;
-    updated_at: string;
-    updated_by: number | null;
 }
 
 interface SystemInfo {
     platform: string;
-    platform_release?: string;
+    platform_release: string;
     platform_version: string;
     python_version: string;
     cpu_count: number;
-    cpu_percent: number;
+    cpu_usage_percent: number;
     memory_total_gb: number;
     memory_used_gb: number;
-    memory_percent: number;
+    memory_usage_percent: number;
     disk_total_gb: number;
     disk_used_gb: number;
-    disk_percent: number;
+    disk_usage_percent: number;
     uptime: string;
 }
 
 function SettingsPage() {
     const { user, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
-    const [settings, setSettings] = useState<Settings | null>(null);
-    const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isBackingUp, setIsBackingUp] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [form, setForm] = useState({
-        app_name: '',
-        items_per_page: 50,
+    const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
+    const [settings, setSettings] = useState<SettingsState>({
+        app_name: 'Inventory Management System',
+        items_per_page: '50',
         allow_negative_stock: false,
         auto_backup_enabled: true,
-        backup_retention_days: 30,
-        low_stock_threshold: 10,
+        backup_retention_days: '30',
+        low_stock_threshold: '10',
         enable_notifications: true,
     });
 
@@ -67,53 +62,46 @@ function SettingsPage() {
     const token = localStorage.getItem('authToken');
 
     useEffect(() => {
-        if (!authLoading && (!user || user.role !== 'ADMIN')) {
+        if (!authLoading && user?.role !== 'ADMIN') {
             navigate('/dashboard');
         }
     }, [authLoading, user, navigate]);
 
     useEffect(() => {
-        if (user?.role === 'ADMIN') {
-            fetchSettings();
-            fetchSystemInfo();
-        }
-    }, [user]);
-
-    const fetchSettings = async () => {
         if (!token) return;
 
-        setIsLoading(true);
-        setError(null);
+        const fetchSettings = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch(`${API_BASE_URL}/settings`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
 
-        try {
-            const response = await fetch(`${API_BASE_URL}/settings/`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch settings');
+                if (response.ok) {
+                    const data = await response.json();
+                    setSettings({
+                        app_name: data.app_name || 'Inventory Management System',
+                        items_per_page: String(data.items_per_page || 50),
+                        allow_negative_stock: Boolean(data.allow_negative_stock),
+                        auto_backup_enabled: Boolean(data.auto_backup_enabled),
+                        backup_retention_days: String(data.backup_retention_days || 30),
+                        low_stock_threshold: String(data.low_stock_threshold || 10),
+                        enable_notifications: Boolean(data.enable_notifications),
+                    });
+                }
+            } catch (err) {
+                console.error('Error fetching settings:', err);
+            } finally {
+                setIsLoading(false);
             }
+        };
 
-            const data: Settings = await response.json();
-            setSettings(data);
-            setForm({
-                app_name: data.app_name,
-                items_per_page: data.items_per_page,
-                allow_negative_stock: data.allow_negative_stock,
-                auto_backup_enabled: data.auto_backup_enabled,
-                backup_retention_days: data.backup_retention_days,
-                low_stock_threshold: data.low_stock_threshold,
-                enable_notifications: data.enable_notifications,
-            });
-        } catch (err) {
-            setError((err as Error).message || 'Failed to load settings');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+        fetchSettings();
+        fetchSystemInfo();
+    }, [API_BASE_URL, token]);
 
     const fetchSystemInfo = async () => {
         if (!token) return;
@@ -135,372 +123,327 @@ function SettingsPage() {
         }
     };
 
-    const handleChange = (field: string, value: string | boolean | number) => {
-        setForm((prev) => ({ ...prev, [field]: value }));
+    const handleChange = (field: keyof SettingsState, value: string | boolean) => {
+        setSettings((prev) => ({ ...prev, [field]: value }));
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSave = async () => {
         if (!token) return;
 
         setIsSaving(true);
         setError(null);
         setSuccess(null);
 
+        const payload = {
+            app_name: settings.app_name.trim(),
+            items_per_page: Number(settings.items_per_page),
+            allow_negative_stock: settings.allow_negative_stock,
+            auto_backup_enabled: settings.auto_backup_enabled,
+            backup_retention_days: Number(settings.backup_retention_days),
+            low_stock_threshold: Number(settings.low_stock_threshold),
+            enable_notifications: settings.enable_notifications,
+        };
+
         try {
-            const response = await fetch(`${API_BASE_URL}/settings/`, {
+            const response = await fetch(`${API_BASE_URL}/settings`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(form),
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Failed to update settings');
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to save settings');
             }
 
-            const data: Settings = await response.json();
-            setSettings(data);
-            setSuccess('Settings updated successfully');
-            
-            setTimeout(() => setSuccess(null), 3000);
+            setSuccess('Settings saved successfully');
         } catch (err) {
-            setError((err as Error).message || 'Failed to update settings');
+            setError((err as Error).message || 'Failed to save settings');
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleTriggerBackup = async () => {
-        if (!token) return;
-
-        setIsBackingUp(true);
-        setError(null);
-        setSuccess(null);
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/settings/backup`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to trigger backup');
-            }
-
-            const data = await response.json();
-            setSuccess(data.message || 'Backup triggered successfully');
-            
-            setTimeout(() => setSuccess(null), 3000);
-        } catch (err) {
-            setError((err as Error).message || 'Failed to trigger backup');
-        } finally {
-            setIsBackingUp(false);
-        }
-    };
-
-
-    const formatNumber = (value: unknown, decimals: number) => {
-        if (typeof value !== 'number' || Number.isNaN(value)) return '-';
-        return value.toFixed(decimals);
-    };
-
-    const formatPercent = (value: unknown, decimals: number) => {
-        if (typeof value !== 'number' || Number.isNaN(value)) return '-';
-        return `${value.toFixed(decimals)}%`;
-    };
-
-    const getUsageBadge = (value: unknown) => {
-        return typeof value === 'number' && !Number.isNaN(value) && value > 80 ? 'danger' : 'success';
-    };
-
     if (authLoading || isLoading) {
         return (
-            <Container className="py-5 text-center">
-                <Spinner animation="border" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                </Spinner>
-            </Container>
+            <div className="flex items-center justify-center py-12">
+                <Spinner size="lg" />
+            </div>
         );
     }
 
     return (
-        <div className="w-100 h-100">
-            <Container fluid className="py-4 px-4">
-                <Row className="mb-4">
-                    <Col>
-                        <h2 className="mb-0">
-                            <i className="bi bi-gear me-2"></i>
-                            Settings
-                        </h2>
-                        <p className="text-muted">Manage application settings and configuration</p>
-                    </Col>
-                </Row>
+        <div className="w-full h-full">
+            <div className="px-4 py-6 max-w-4xl mx-auto">
+                {/* Header */}
+                <div className="mb-6">
+                    <h2 className="text-3xl font-bold text-gray-900">⚙️ Settings</h2>
+                    <p className="text-gray-600 mt-1">Configure application settings</p>
+                </div>
 
                 {error && (
-                    <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                    <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-4">
                         {error}
                     </Alert>
                 )}
-
                 {success && (
-                    <Alert variant="success" dismissible onClose={() => setSuccess(null)}>
+                    <Alert variant="success" dismissible onClose={() => setSuccess(null)} className="mb-4">
                         {success}
                     </Alert>
                 )}
 
-                <Row className="g-4">
-                    {/* Application Settings */}
-                    <Col lg={8}>
-                        <Card className="shadow-sm">
-                            <Card.Header className="bg-white border-bottom">
-                                <h5 className="mb-0">Application Settings</h5>
-                            </Card.Header>
-                            <Card.Body>
-                                <Form onSubmit={handleSubmit}>
-                                    <Row className="g-3">
-                                        <Col md={12}>
-                                            <Form.Group>
-                                                <Form.Label>Application Name</Form.Label>
-                                                <Form.Control
-                                                    value={form.app_name}
-                                                    onChange={(e) => handleChange('app_name', e.target.value)}
-                                                    required
-                                                />
-                                            </Form.Group>
-                                        </Col>
-
-                                        <Col md={6}>
-                                            <Form.Group>
-                                                <Form.Label>Items Per Page</Form.Label>
-                                                <Form.Control
-                                                    type="number"
-                                                    min="10"
-                                                    max="100"
-                                                    value={form.items_per_page}
-                                                    onChange={(e) => handleChange('items_per_page', Number(e.target.value))}
-                                                    required
-                                                />
-                                                <Form.Text className="text-muted">
-                                                    Number of items to display per page (10-100)
-                                                </Form.Text>
-                                            </Form.Group>
-                                        </Col>
-
-                                        <Col md={6}>
-                                            <Form.Group>
-                                                <Form.Label>Low Stock Threshold</Form.Label>
-                                                <Form.Control
-                                                    type="number"
-                                                    min="0"
-                                                    value={form.low_stock_threshold}
-                                                    onChange={(e) => handleChange('low_stock_threshold', Number(e.target.value))}
-                                                    required
-                                                />
-                                                <Form.Text className="text-muted">
-                                                    Alert when stock falls below this level
-                                                </Form.Text>
-                                            </Form.Group>
-                                        </Col>
-
-                                        <Col md={6}>
-                                            <Form.Group>
-                                                <Form.Label>Backup Retention Days</Form.Label>
-                                                <Form.Control
-                                                    type="number"
-                                                    min="1"
-                                                    max="365"
-                                                    value={form.backup_retention_days}
-                                                    onChange={(e) => handleChange('backup_retention_days', Number(e.target.value))}
-                                                    required
-                                                />
-                                                <Form.Text className="text-muted">
-                                                    Number of days to retain backups (1-365)
-                                                </Form.Text>
-                                            </Form.Group>
-                                        </Col>
-
-                                        <Col md={12}>
-                                            <hr />
-                                            <h6 className="mb-3">Options</h6>
-                                        </Col>
-
-                                        <Col md={12}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                id="allow-negative-stock"
-                                                label="Allow Negative Stock"
-                                                checked={form.allow_negative_stock}
-                                                onChange={(e) => handleChange('allow_negative_stock', e.target.checked)}
-                                            />
-                                            <Form.Text className="text-muted d-block mb-2">
-                                                Allow stock quantities to go below zero
-                                            </Form.Text>
-                                        </Col>
-
-                                        <Col md={12}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                id="auto-backup"
-                                                label="Enable Automatic Backups"
-                                                checked={form.auto_backup_enabled}
-                                                onChange={(e) => handleChange('auto_backup_enabled', e.target.checked)}
-                                            />
-                                            <Form.Text className="text-muted d-block mb-2">
-                                                Automatically create daily database backups
-                                            </Form.Text>
-                                        </Col>
-
-                                        <Col md={12}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                id="enable-notifications"
-                                                label="Enable Notifications"
-                                                checked={form.enable_notifications}
-                                                onChange={(e) => handleChange('enable_notifications', e.target.checked)}
-                                            />
-                                            <Form.Text className="text-muted d-block mb-2">
-                                                Show notifications for low stock and other alerts
-                                            </Form.Text>
-                                        </Col>
-                                    </Row>
-
-                                    <div className="d-flex justify-content-end gap-2 mt-4">
-                                        <Button
-                                            variant="outline-secondary"
-                                            onClick={() => fetchSettings()}
-                                            disabled={isSaving}
-                                        >
-                                            Reset
-                                        </Button>
-                                        <Button variant="primary" type="submit" disabled={isSaving}>
-                                            {isSaving ? (
-                                                <>
-                                                    <Spinner animation="border" size="sm" className="me-2" />
-                                                    Saving...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <i className="bi bi-save me-2"></i>
-                                                    Save Settings
-                                                </>
-                                            )}
-                                        </Button>
+                {/* System Info */}
+                {systemInfo && (
+                    <Card className="mb-6 bg-blue-50 border-blue-200">
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <Info className="w-5 h-5 text-blue-600" />
+                                <h5 className="font-bold text-blue-900">System Information</h5>
+                            </div>
+                        </CardHeader>
+                        <CardBody>
+                            {/* Platform Info */}
+                            <div className="mb-6">
+                                <h6 className="font-semibold text-sm text-gray-700 mb-3 flex items-center gap-2">
+                                    <Info className="w-4 h-4" />
+                                    Platform
+                                </h6>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div>
+                                        <p className="text-sm text-gray-600">Operating System</p>
+                                        <p className="font-semibold text-gray-900">{systemInfo.platform}</p>
                                     </div>
-                                </Form>
-                            </Card.Body>
-                        </Card>
-                    </Col>
+                                    <div>
+                                        <p className="text-sm text-gray-600">Release</p>
+                                        <p className="font-semibold text-gray-900">{systemInfo.platform_release}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">Python Version</p>
+                                        <p className="font-semibold text-gray-900">{systemInfo.python_version}</p>
+                                    </div>
+                                    <div className="md:col-span-2 lg:col-span-3">
+                                        <p className="text-sm text-gray-600">Uptime</p>
+                                        <p className="font-semibold text-gray-900 text-xs">{systemInfo.uptime}</p>
+                                    </div>
+                                </div>
+                            </div>
 
-                    {/* System Information & Actions */}
-                    <Col lg={4}>
-                        {/* Backup Section */}
-                        <Card className="shadow-sm mb-4">
-                            <Card.Header className="bg-white border-bottom">
-                                <h5 className="mb-0">Backup</h5>
-                            </Card.Header>
-                            <Card.Body>
-                                <p className="text-muted mb-3">
-                                    Create a manual backup of the database
-                                </p>
-                                <Button
-                                    variant="success"
-                                    className="w-100"
-                                    onClick={handleTriggerBackup}
-                                    disabled={isBackingUp}
-                                >
-                                    {isBackingUp ? (
-                                        <>
-                                            <Spinner animation="border" size="sm" className="me-2" />
-                                            Creating Backup...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <i className="bi bi-cloud-arrow-down me-2"></i>
-                                            Trigger Backup Now
-                                        </>
-                                    )}
-                                </Button>
-                            </Card.Body>
-                        </Card>
+                            {/* CPU Info */}
+                            <div className="mb-6">
+                                <h6 className="font-semibold text-sm text-gray-700 mb-3 flex items-center gap-2">
+                                    <Cpu className="w-4 h-4" />
+                                    CPU
+                                </h6>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p className="text-sm text-gray-600">CPU Cores</p>
+                                        <p className="font-semibold text-gray-900">{systemInfo.cpu_count}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">CPU Usage</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                                <div
+                                                    className="bg-blue-600 h-2 rounded-full transition-all"
+                                                    style={{ width: `${systemInfo.cpu_usage_percent}%` }}
+                                                />
+                                            </div>
+                                            <p className="font-semibold text-gray-900">{systemInfo.cpu_usage_percent}%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                        {/* System Info */}
-                        {systemInfo && (
-                            <Card className="shadow-sm">
-                                <Card.Header className="bg-white border-bottom">
-                                    <h5 className="mb-0">System Information</h5>
-                                </Card.Header>
-                                <Card.Body>
-                                    <Table size="sm" className="mb-0">
-                                        <tbody>
-                                            <tr>
-                                                <td className="fw-semibold">Platform</td>
-                                                <td>{systemInfo.platform}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="fw-semibold">Python</td>
-                                                <td>{systemInfo.python_version}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="fw-semibold">CPU Cores</td>
-                                                <td>{systemInfo.cpu_count}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="fw-semibold">CPU Usage</td>
-                                                <td>
-                                                    <Badge bg={getUsageBadge(systemInfo.cpu_percent)}>
-                                                        {formatPercent(systemInfo.cpu_percent, 1)}
-                                                    </Badge>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="fw-semibold">Memory</td>
-                                                <td>
-                                                    {formatNumber(systemInfo.memory_used_gb, 2)} / {formatNumber(systemInfo.memory_total_gb, 2)} GB
-                                                    <br />
-                                                    <Badge bg={getUsageBadge(systemInfo.memory_percent)}>
-                                                        {formatPercent(systemInfo.memory_percent, 1)}
-                                                    </Badge>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="fw-semibold">Disk</td>
-                                                <td>
-                                                    {formatNumber(systemInfo.disk_used_gb, 2)} / {formatNumber(systemInfo.disk_total_gb, 2)} GB
-                                                    <br />
-                                                    <Badge bg={getUsageBadge(systemInfo.disk_percent)}>
-                                                        {formatPercent(systemInfo.disk_percent, 1)}
-                                                    </Badge>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </Table>
-                                </Card.Body>
-                            </Card>
-                        )}
-                    </Col>
-                </Row>
+                            {/* Memory Info */}
+                            <div className="mb-6">
+                                <h6 className="font-semibold text-sm text-gray-700 mb-3 flex items-center gap-2">
+                                    <MemoryStick className="w-4 h-4" />
+                                    Memory
+                                </h6>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p className="text-sm text-gray-600">Total / Used</p>
+                                        <p className="font-semibold text-gray-900">
+                                            {systemInfo.memory_used_gb} GB / {systemInfo.memory_total_gb} GB
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">Memory Usage</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                                <div
+                                                    className={`h-2 rounded-full transition-all ${
+                                                        systemInfo.memory_usage_percent > 80
+                                                            ? 'bg-red-600'
+                                                            : systemInfo.memory_usage_percent > 60
+                                                            ? 'bg-yellow-600'
+                                                            : 'bg-green-600'
+                                                    }`}
+                                                    style={{ width: `${systemInfo.memory_usage_percent}%` }}
+                                                />
+                                            </div>
+                                            <p className="font-semibold text-gray-900">{systemInfo.memory_usage_percent}%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                {settings && (
-                    <Row className="mt-4">
-                        <Col>
-                            <Card className="shadow-sm">
-                                <Card.Body>
-                                    <small className="text-muted">
-                                        Last updated: {new Date(settings.updated_at).toLocaleString()}
-                                    </small>
-                                </Card.Body>
-                            </Card>
-                        </Col>
-                    </Row>
+                            {/* Disk Info */}
+                            <div>
+                                <h6 className="font-semibold text-sm text-gray-700 mb-3 flex items-center gap-2">
+                                    <HardDrive className="w-4 h-4" />
+                                    Disk
+                                </h6>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p className="text-sm text-gray-600">Total / Used</p>
+                                        <p className="font-semibold text-gray-900">
+                                            {systemInfo.disk_used_gb} GB / {systemInfo.disk_total_gb} GB
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">Disk Usage</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                                <div
+                                                    className={`h-2 rounded-full transition-all ${
+                                                        systemInfo.disk_usage_percent > 80
+                                                            ? 'bg-red-600'
+                                                            : systemInfo.disk_usage_percent > 60
+                                                            ? 'bg-yellow-600'
+                                                            : 'bg-green-600'
+                                                    }`}
+                                                    style={{ width: `${systemInfo.disk_usage_percent}%` }}
+                                                />
+                                            </div>
+                                            <p className="font-semibold text-gray-900">{systemInfo.disk_usage_percent}%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardBody>
+                    </Card>
                 )}
-            </Container>
+
+                {/* General Settings */}
+                <Card className="mb-6">
+                    <CardHeader>
+                        <h5 className="font-bold">General Settings</h5>
+                    </CardHeader>
+                    <CardBody>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormInput
+                                label="Application Name"
+                                placeholder="Enter app name"
+                                value={settings.app_name}
+                                onChange={(e) => handleChange('app_name', e.target.value)}
+                            />
+                            <FormInput
+                                label="Items Per Page"
+                                type="number"
+                                min="10"
+                                max="500"
+                                value={settings.items_per_page}
+                                onChange={(e) => handleChange('items_per_page', e.target.value)}
+                            />
+                        </div>
+                    </CardBody>
+                </Card>
+
+                {/* Stock Settings */}
+                <Card className="mb-6">
+                    <CardHeader>
+                        <h5 className="font-bold">Stock Settings</h5>
+                    </CardHeader>
+                    <CardBody>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <FormInput
+                                label="Low Stock Threshold"
+                                type="number"
+                                min="0"
+                                value={settings.low_stock_threshold}
+                                onChange={(e) => handleChange('low_stock_threshold', e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <FormCheckbox
+                                id="allow-negative"
+                                label="Allow Negative Stock"
+                                checked={settings.allow_negative_stock}
+                                onChange={(e) => handleChange('allow_negative_stock', e.target.checked)}
+                            />
+                        </div>
+                    </CardBody>
+                </Card>
+
+                {/* Backup Settings */}
+                <Card className="mb-6">
+                    <CardHeader>
+                        <h5 className="font-bold">Backup Settings</h5>
+                    </CardHeader>
+                    <CardBody>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <FormInput
+                                label="Backup Retention Days"
+                                type="number"
+                                min="1"
+                                max="365"
+                                value={settings.backup_retention_days}
+                                onChange={(e) => handleChange('backup_retention_days', e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <FormCheckbox
+                                id="auto-backup"
+                                label="Enable Automatic Backups"
+                                checked={settings.auto_backup_enabled}
+                                onChange={(e) => handleChange('auto_backup_enabled', e.target.checked)}
+                            />
+                        </div>
+                    </CardBody>
+                </Card>
+
+                {/* Notification Settings */}
+                <Card className="mb-6">
+                    <CardHeader>
+                        <h5 className="font-bold">Notification Settings</h5>
+                    </CardHeader>
+                    <CardBody>
+                        <div>
+                            <FormCheckbox
+                                id="enable-notifications"
+                                label="Enable Notifications"
+                                checked={settings.enable_notifications}
+                                onChange={(e) => handleChange('enable_notifications', e.target.checked)}
+                            />
+                        </div>
+                    </CardBody>
+                </Card>
+
+                {/* Save Button */}
+                <div className="flex justify-end gap-2">
+                    <Button
+                        variant="primary"
+                        onClick={handleSave}
+                        disabled={isSaving}
+                    >
+                        {isSaving ? (
+                            <>
+                                <Spinner size="sm" className="mr-2" />
+                                Saving...
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-4 h-4 mr-2" />
+                                Save Settings
+                            </>
+                        )}
+                    </Button>
+                </div>
+            </div>
         </div>
     );
 }

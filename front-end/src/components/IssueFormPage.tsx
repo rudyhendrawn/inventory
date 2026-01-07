@@ -1,9 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from 'react-bootstrap';
+import { ArrowLeft } from 'lucide-react';
+import {
+    Button,
+    Card,
+    CardHeader,
+    CardBody,
+    CardFooter,
+    Alert,
+    Spinner,
+    FormInput,
+    FormTextarea,
+} from './UI';
 
-interface UserOption {
+interface User {
     id: number;
     name: string;
     email: string;
@@ -24,8 +35,8 @@ function IssueFormPage() {
     const navigate = useNavigate();
     const { user, isLoading: authLoading } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
-    const [users, setUsers] = useState<UserOption[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [users, setUsers] = useState<User[]>([]);
     const [form, setForm] = useState<IssueFormState>({
         code: '',
         status: 'DRAFT',
@@ -45,28 +56,17 @@ function IssueFormPage() {
     }, [authLoading, user, navigate]);
 
     useEffect(() => {
-        if (!authLoading && user && !['ADMIN', 'STAFF'].includes(user.role)) {
-            navigate('/dashboard');
-        }
-    }, [authLoading, user, navigate]);
-
-    useEffect(() => {
         if (!token) return;
 
         const loadUsers = async () => {
             try {
-                const response = await fetch(`${API_BASE_URL}/users?page=1&page_size=100&active_only=1`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+                const response = await fetch(`${API_BASE_URL}/users?page=1&page_size=100`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
                 });
-                if (!response.ok) {
-                    throw new Error('Failed to load users');
+                if (response.ok) {
+                    const data = await response.json();
+                    setUsers(Array.isArray(data) ? data : (data.users || []));
                 }
-                const data = await response.json();
-                const nextUsers = Array.isArray(data) ? data : (data.users || []);
-                setUsers(nextUsers);
             } catch (err) {
                 console.error('Error loading users:', err);
             }
@@ -88,17 +88,18 @@ function IssueFormPage() {
                         'Content-Type': 'application/json',
                     },
                 });
-                if (!response.ok) {
-                    throw new Error('Failed to load issue');
-                }
+                if (!response.ok) throw new Error('Failed to load issue');
+
                 const data = await response.json();
+                const issueData = data.issue ?? data;
+
                 setForm({
-                    code: data.code || '',
-                    status: (data.status || 'DRAFT').toUpperCase(),
-                    requested_by: data.requested_by ? String(data.requested_by) : '',
-                    approved_by: data.approved_by ? String(data.approved_by) : '',
-                    issued_at: data.issued_at ? new Date(data.issued_at).toISOString().slice(0, 16) : '',
-                    note: data.note || '',
+                    code: issueData.code || '',
+                    status: issueData.status || 'DRAFT',
+                    requested_by: issueData.requested_by ? String(issueData.requested_by) : '',
+                    approved_by: issueData.approved_by ? String(issueData.approved_by) : '',
+                    issued_at: issueData.issued_at ? issueData.issued_at.split('T')[0] : '',
+                    note: issueData.note || '',
                 });
             } catch (err) {
                 setError((err as Error).message || 'Failed to load issue');
@@ -123,7 +124,7 @@ function IssueFormPage() {
 
         const payload = {
             code: form.code.trim(),
-            status: form.status.toUpperCase(),
+            status: form.status,
             requested_by: form.requested_by ? Number(form.requested_by) : null,
             approved_by: form.approved_by ? Number(form.approved_by) : null,
             issued_at: form.issued_at ? new Date(form.issued_at).toISOString() : null,
@@ -158,116 +159,133 @@ function IssueFormPage() {
 
     if (authLoading || isLoading) {
         return (
-            <Container className="py-5 text-center">
-                <Spinner animation="border" role="status" />
-            </Container>
+            <div className="flex items-center justify-center py-12">
+                <Spinner size="lg" />
+            </div>
         );
     }
 
     return (
-        <Container className="py-4">
-            <Card className="shadow-sm">
-                <Card.Header className="bg-white border-bottom">
-                    <h5 className="mb-0">{isEdit ? 'Edit Issue' : 'Create New Issue'}</h5>
-                </Card.Header>
-                <Card.Body>
-                    {error && (
-                        <Alert variant="danger" dismissible onClose={() => setError(null)}>
-                            {error}
-                        </Alert>
-                    )}
-                    <Form onSubmit={handleSubmit}>
-                        <Row className="g-3">
-                            <Col md={6}>
-                                <Form.Group>
-                                    <Form.Label>Issue Code</Form.Label>
-                                    <Form.Control
-                                        value={form.code}
-                                        onChange={(e) => handleChange('code', e.target.value)}
-                                        required
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group>
-                                    <Form.Label>Status</Form.Label>
-                                    <Form.Select
+        <div className="w-full h-full">
+            <div className="px-4 py-6 max-w-4xl mx-auto">
+                {/* Header */}
+                <div className="mb-6 flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                        <ArrowLeft className="w-6 h-6" />
+                    </button>
+                    <div>
+                        <h2 className="text-3xl font-bold text-gray-900">
+                            {isEdit ? 'Edit Issue' : 'Create New Issue'}
+                        </h2>
+                        <p className="text-gray-600 mt-1">Fill in the details below</p>
+                    </div>
+                </div>
+
+                {error && (
+                    <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-6">
+                        {error}
+                    </Alert>
+                )}
+
+                <Card>
+                    <CardHeader>
+                        <h5 className="font-bold">Issue Information</h5>
+                    </CardHeader>
+                    <CardBody>
+                        <form onSubmit={handleSubmit}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <FormInput
+                                    label="Issue Code"
+                                    placeholder="e.g., ISS-001"
+                                    value={form.code}
+                                    onChange={(e) => handleChange('code', e.target.value)}
+                                    required
+                                />
+                                <div>
+                                    <label className="form-label">Status</label>
+                                    <select
+                                        className="form-select"
                                         value={form.status}
                                         onChange={(e) => handleChange('status', e.target.value)}
+                                        required
                                     >
-                                        <option value="DRAFT">DRAFT</option>
-                                        <option value="APPROVED">APPROVED</option>
-                                        <option value="ISSUED">ISSUED</option>
-                                        <option value="CANCELLED">CANCELLED</option>
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group>
-                                    <Form.Label>Requested By</Form.Label>
-                                    <Form.Select
+                                        <option value="DRAFT">Draft</option>
+                                        <option value="APPROVED">Approved</option>
+                                        <option value="ISSUED">Issued</option>
+                                        <option value="CANCELLED">Cancelled</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="form-label">Requested By</label>
+                                    <select
+                                        className="form-select"
                                         value={form.requested_by}
                                         onChange={(e) => handleChange('requested_by', e.target.value)}
                                     >
                                         <option value="">Select user</option>
                                         {users.map((u) => (
                                             <option key={u.id} value={u.id}>
-                                                {u.name} ({u.email})
+                                                {u.name}
                                             </option>
                                         ))}
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group>
-                                    <Form.Label>Approved By</Form.Label>
-                                    <Form.Select
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="form-label">Approved By</label>
+                                    <select
+                                        className="form-select"
                                         value={form.approved_by}
                                         onChange={(e) => handleChange('approved_by', e.target.value)}
                                     >
                                         <option value="">Select user</option>
                                         {users.map((u) => (
                                             <option key={u.id} value={u.id}>
-                                                {u.name} ({u.email})
+                                                {u.name}
                                             </option>
                                         ))}
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group>
-                                    <Form.Label>Issued At</Form.Label>
-                                    <Form.Control
-                                        type="datetime-local"
-                                        value={form.issued_at}
-                                        onChange={(e) => handleChange('issued_at', e.target.value)}
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={12}>
-                                <Form.Group>
-                                    <Form.Label>Note</Form.Label>
-                                    <Form.Control
-                                        as="textarea"
-                                        rows={3}
-                                        value={form.note}
-                                        onChange={(e) => handleChange('note', e.target.value)}
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
-                        <div className="d-flex justify-content-end gap-2 mt-4">
-                            <Button variant="outline-secondary" onClick={() => navigate('/dashboard')}>
-                                Cancel
-                            </Button>
-                            <Button variant="primary" type="submit">
-                                {isEdit ? 'Save Changes' : 'Create Issue'}
-                            </Button>
-                        </div>
-                    </Form>
-                </Card.Body>
-            </Card>
-        </Container>
+                                    </select>
+                                </div>
+                                <FormInput
+                                    label="Issued At"
+                                    type="date"
+                                    value={form.issued_at}
+                                    onChange={(e) => handleChange('issued_at', e.target.value)}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 mb-6">
+                                <FormTextarea
+                                    label="Note"
+                                    placeholder="Add issue notes..."
+                                    value={form.note}
+                                    onChange={(e) => handleChange('note', e.target.value)}
+                                    rows={4}
+                                />
+                            </div>
+
+                            <CardFooter className="bg-gray-50 flex justify-end gap-2">
+                                <Button variant="secondary" onClick={() => navigate('/dashboard')}>
+                                    Cancel
+                                </Button>
+                                <Button variant="primary" type="submit" disabled={isLoading}>
+                                    {isLoading ? (
+                                        <>
+                                            <Spinner size="sm" className="mr-2" />
+                                            {isEdit ? 'Saving...' : 'Creating...'}
+                                        </>
+                                    ) : (
+                                        <>{isEdit ? 'Save Changes' : 'Create Issue'}</>
+                                    )}
+                                </Button>
+                            </CardFooter>
+                        </form>
+                    </CardBody>
+                </Card>
+            </div>
+        </div>
     );
 }
 

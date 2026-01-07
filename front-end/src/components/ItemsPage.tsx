@@ -1,37 +1,39 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import {
-    Container,
-    Row,
-    Col,
-    Card,
-    Table,
-    Button,
-    Form,
-    Badge,
-    Spinner,
-    Pagination,
-    Modal,
-    Alert
-} from 'react-bootstrap';
+import { Plus, Search, Pencil, Trash2, Inbox, Download } from 'lucide-react';
 import QRCode from 'qrcode';
 import { downloadQRCodesPDF } from '../utils/qrPdfGenerators';
+import {
+    Button,
+    Card,
+    CardHeader,
+    CardBody,
+    Badge,
+    Alert,
+    Spinner,
+    Modal,
+    ModalHeader,
+    ModalBody,
+    ModalFooter,
+    Pagination,
+    PaginationInfo,
+} from './UI';
 
 interface Item {
     id: number;
     item_code: string;
     name: string;
+    description: string | null;
     category_id: number;
     unit_id: number;
     owner_user_id: number | null;
-    serial_number: string | null;
     qrcode: string | null;
     min_stock: number;
-    description: string | null;
     image_url: string | null;
-    active: boolean;
-    created_at?: string;
+    active: number;
+    created_at: string;
+    updated_at: string;
 }
 
 interface ItemListResponse {
@@ -46,42 +48,54 @@ interface Category {
     name: string;
 }
 
+interface Unit {
+    id: number;
+    name: string;
+    symbol: string;
+}
+
 interface User {
     id: number;
     name: string;
-    email: string;
+}
+
+interface BulkQRCode {
+    item_code: string;
+    name: string;
+    dataUrl: string;
+}
+
+interface QRPreview {
+    item: Item;
+    dataUrl: string;
 }
 
 function ItemsPage() {
     const { user: currentUser, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [items, setItems] = useState<Item[]>([]);
-    const [searchTerm, ] = useState('');
-    const [activeOnly, ] = useState(true);
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [units, setUnits] = useState<Unit[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
+
+    const [searchInput, setSearchInput] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
-    const [pageSize] = useState(50);
+    const [pageSize] = useState(10);
     const [selectedItem, setSelectedItem] = useState<Item | null>(null);
     const [showModal, setShowModal] = useState(false);
-    const [sortConfig, setSortConfig] = useState<{ key: keyof Item; direction: 'asc' | 'desc' } | null>(null);
-    const [filters, setFilters] = useState({
-        item_code: '',
-        name: '',
-        description: '',
-        minStockMin: '',
-        status: 'all',
-    });
-    const [showQRModal, setShowQRModal] = useState(false);
-    const [selectedItemForQR, setSelectedItemForQR] = useState<Item | null>(null);
     const [showBulkQRModal, setShowBulkQRModal] = useState(false);
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [users, setUsers] = useState<User[]>([]);
-    const [qrDataUrl, setQrDataUrl] = useState<string>('');
-    const [bulkQRCodes, setBulkQRCodes] = useState<{ item: Item; dataUrl: string }[]>([]);
+    const [bulkQRCodes, setBulkQRCodes] = useState<BulkQRCode[]>([]);
     const [isGeneratingBulk, setIsGeneratingBulk] = useState(false);
+    const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+    const [qrPreview, setQrPreview] = useState<QRPreview | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Item; direction: 'asc' | 'desc' } | null>(null);
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
@@ -93,39 +107,85 @@ function ItemsPage() {
     }, [authLoading, currentUser, navigate]);
 
     useEffect(() => {
-        fetchItems();
         fetchMetadata();
-    }, [currentPage, searchTerm, activeOnly]);
+    }, []);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setDebouncedSearch(searchInput);
+            setCurrentPage(1);
+        }, 300);
+        return () => window.clearTimeout(timer);
+    }, [searchInput]);
+
+    useEffect(() => {
+        fetchItems();
+    }, [currentPage, debouncedSearch, statusFilter]);
 
     const fetchMetadata = async () => {
         if (!token) return;
 
         try {
-            const [categoriesRes, usersRes] = await Promise.all([
+            const [categoriesRes, unitsRes, usersRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/categories?page=1&page_size=100`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Authorization': `Bearer ${token}` },
+                }),
+                fetch(`${API_BASE_URL}/units?page=1&page_size=100`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
                 }),
                 fetch(`${API_BASE_URL}/users?page=1&page_size=100&active_only=1`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Authorization': `Bearer ${token}` },
                 }),
             ]);
 
-            if (categoriesRes.ok) {
-                const categoriesData = await categoriesRes.json();
-                setCategories(categoriesData || []);
-            }
-            if (usersRes.ok) {
-                const usersData = await usersRes.json();
-                setUsers(usersData.users || []);
-            }
+            const catData = await categoriesRes.json();
+            const unitData = await unitsRes.json();
+            const userData = await usersRes.json();
+
+            setCategories(Array.isArray(catData) ? catData : []);
+            setUnits(unitData.units || []);
+            setUsers(Array.isArray(userData) ? userData : (userData.users || []));
         } catch (error) {
             console.error('Error fetching metadata:', error);
+        }
+    };
+
+    const fetchItems = async () => {
+        if (!token) return;
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const params = new URLSearchParams({
+                page: currentPage.toString(),
+                page_size: pageSize.toString(),
+            });
+
+            if (debouncedSearch.trim()) {
+                params.append('search', debouncedSearch.trim());
+            }
+
+            const response = await fetch(`${API_BASE_URL}/items?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Failed to fetch items');
+            }
+
+            const data: ItemListResponse = await response.json();
+            setItems(data.items);
+            setTotalItems(data.total);
+            setTotalPages(Math.ceil(data.total / pageSize));
+        } catch (err) {
+            setError((err as Error).message || 'Failed to load items');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -140,66 +200,44 @@ function ItemsPage() {
         return user ? user.name : 'Unknown';
     };
 
-    const generateQRData = (item: Item): string => {
-        const qrInfo = {
-            item_id: item.id,
-            item_code: item.item_code,
-            name: item.name,
-            category: getCategoryName(item.category_id),
-            owner: getUserName(item.owner_user_id),
-            status: item.active ? 'Active' : 'Inactive',
-        };
-        return JSON.stringify(qrInfo, null, 2);
+    const buildQrPayload = (item: Item) => JSON.stringify({
+        item_id: item.id,
+        item_code: item.item_code,
+        name: item.name,
+        category: getCategoryName(item.category_id),
+        owner: getUserName(item.owner_user_id),
+        status: item.active ? 'Active' : 'Inactive',
+    }, null, 2);
+
+    const createQrDataUrl = (payload: string) => {
+        return QRCode.toDataURL(payload, {
+            width: 300,
+            margin: 2,
+            color: { dark: '#000000', light: '#FFFFFF' },
+        });
     };
 
     const handleGenerateQR = async (item: Item) => {
         try {
-            const qrData = generateQRData(item);
-            const dataUrl = await QRCode.toDataURL(qrData, { 
-                width: 300,
-                margin: 2,
-                color: {
-                    dark: '#000000',
-                    light: '#FFFFFF',
-                }
-            });
-            setQrDataUrl(dataUrl);
-            setSelectedItemForQR(item);
-            setShowQRModal(true);
+            const dataUrl = await createQrDataUrl(buildQrPayload(item));
+            setQrPreview({ item, dataUrl });
         } catch (error) {
             console.error('Error generating QR code:', error);
             setError('Failed to generate QR code');
         }
     };
 
-    const handleDownloadQR = () => {
-        if (!qrDataUrl || !selectedItemForQR) return;
-
-        const link = document.createElement('a');
-        link.href = qrDataUrl;
-        link.download = `QR_${selectedItemForQR.item_code}_${selectedItemForQR.name.replace(/\s+/g, '_')}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
     const handleGenerateBulkQR = async () => {
         setIsGeneratingBulk(true);
         try {
             const qrPromises = sortedItems.map(async (item) => {
-                const qrData = generateQRData(item);
-                const dataUrl = await QRCode.toDataURL(qrData, {
-                    width: 300,
-                    margin: 2,
-                    color: {
-                        dark: '#000000',
-                        light: '#FFFFFF',
-                    }
-                });
-                return { item, dataUrl };
+                const dataUrl = await createQrDataUrl(buildQrPayload(item));
+
+                return { item_code: item.item_code, name: item.name, dataUrl };
             });
-            const qrResults = await Promise.all(qrPromises);
-            setBulkQRCodes(qrResults);
+
+            const qrItems = await Promise.all(qrPromises);
+            setBulkQRCodes(qrItems);
             setShowBulkQRModal(true);
         } catch (error) {
             console.error('Error generating bulk QR codes:', error);
@@ -209,65 +247,20 @@ function ItemsPage() {
         }
     };
 
-    const handleDownloadBulkPDF = async () => {
-        setIsGeneratingBulk(true);
-        try {
-            const qrPromises = sortedItems.map(async (item) => {
-                const qrData = generateQRData(item);
-                const dataUrl = await QRCode.toDataURL(qrData, {
-                    width: 300,
-                    margin: 2,
-                    color: {
-                        dark: '#000000',
-                        light: '#FFFFFF',
-                    }
-                });
-                return { 
-                    item_code: item.item_code, 
-                    name: item.name,
-                    dataUrl 
-                };
-            });
+    const fetchAllItems = async () => {
+        if (!token) return [];
 
-            const qrItems = await Promise.all(qrPromises);
+        const allItems: Item[] = [];
+        let page = 1;
+        let total = 0;
 
-            // Generate and download PDF
-            downloadQRCodesPDF(qrItems, undefined, {
-                cols: 5,
-                rows: 6,
-                showGrid: true,
-            });
-        } catch (error) {
-            console.error('Error generating bulk QR codes PDF:', error);
-            setError('Failed to generate bulk QR codes PDF');
-        } finally {
-            setIsGeneratingBulk(false);
-        }
-    };
-
-    const handleRowClick = (item: Item) => {
-        setSelectedItem(item);
-        setShowModal(true);
-    };
-
-    const fetchItems = async () => {
-        if (!token) return;
-
-        setIsLoading(true);
-        setError(null);
-
-        try {
+        do {
             const params = new URLSearchParams({
-                page: currentPage.toString(),
-                page_size: pageSize.toString(),
-                active_only: activeOnly ? '1' : '0',
+                page: page.toString(),
+                page_size: '100',
             });
 
-            if (searchTerm.trim()) {
-                params.append('search', searchTerm.trim());
-            }
-
-            const response = await fetch(`${API_BASE_URL}/items`, {
+            const response = await fetch(`${API_BASE_URL}/items?${params}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -275,19 +268,57 @@ function ItemsPage() {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch items');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Failed to fetch items');
             }
 
             const data: ItemListResponse = await response.json();
-            setItems(data.items);
-            setTotalItems(data.total);
-            setTotalPages(Math.ceil(data.total / pageSize));
-        } catch (err) {
-            setError((err as Error).message || 'Failed to load items');
-            console.error('Error fetching items:', err);
+            total = data.total;
+            if (data.items.length === 0) {
+                break;
+            }
+            allItems.push(...data.items);
+            page += 1;
+        } while (allItems.length < total);
+
+        return allItems;
+    };
+
+    const handleDownloadAllPDF = async () => {
+        setIsDownloadingAll(true);
+        setError(null);
+        try {
+            const allItems = await fetchAllItems();
+            if (allItems.length === 0) {
+                setError('No items available to export.');
+                return;
+            }
+
+            const qrItems = await Promise.all(allItems.map(async (item) => ({
+                item_code: item.item_code,
+                name: item.name,
+                dataUrl: await createQrDataUrl(buildQrPayload(item)),
+            })));
+
+            downloadQRCodesPDF(qrItems, undefined, {
+                cols: 5,
+                rows: 6,
+                showGrid: true,
+            });
+        } catch (error) {
+            console.error('Error downloading all QR codes:', error);
+            setError('Failed to download all QR codes');
         } finally {
-            setIsLoading(false);
+            setIsDownloadingAll(false);
         }
+    };
+
+    const handleDownloadBulkPDF = () => {
+        downloadQRCodesPDF(bulkQRCodes, undefined, {
+            cols: 5,
+            rows: 6,
+            showGrid: true,
+        });
     };
 
     const handleDeleteItem = async (itemId: number) => {
@@ -303,13 +334,18 @@ function ItemsPage() {
                 },
             });
             if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || 'Failed to delete item');
+                throw new Error('Failed to delete item');
             }
             fetchItems();
+            setShowModal(false);
         } catch (err) {
             setError((err as Error).message || 'Failed to delete item');
         }
+    };
+
+    const handleRowClick = (item: Item) => {
+        setSelectedItem(item);
+        setShowModal(true);
     };
 
     const handleSort = (key: keyof Item) => {
@@ -323,35 +359,30 @@ function ItemsPage() {
 
     const getSortIndicator = (key: keyof Item) => {
         if (sortConfig?.key !== key) return '';
-        return sortConfig.direction === 'asc' ? '↑' : '↓';
+        return sortConfig.direction === 'asc' ? '▲' : '▼';
     };
 
     const filteredItems = useMemo(() => {
-        return items.filter((item) => {
-            if (filters.item_code && !item.item_code.toLowerCase().includes(filters.item_code.toLowerCase())) {
-                return false;
-            }
-            if (filters.name && !item.name.toLowerCase().includes(filters.name.toLowerCase())) {
-                return false;
-            }
-            const descriptionValue = item.description ?? '';
-            if (filters.description && !descriptionValue.toLowerCase().includes(filters.description.toLowerCase())) {
-                return false;
-            }
-            if (filters.status !== 'all') {
-                const isActive = Boolean(item.active);
-                if (filters.status === 'active' && !isActive) return false;
-                if (filters.status === 'inactive' && isActive) return false;
-            }
-            if (filters.minStockMin) {
-                const min = Number(filters.minStockMin);
-                if (!Number.isNaN(min) && (typeof item.min_stock !== 'number' || item.min_stock < min)) {
-                    return false;
-                }
-            }
-            return true;
-        });
-    }, [items, filters]);
+        let filtered = items;
+        const term = debouncedSearch.trim().toLowerCase();
+
+        if (term) {
+            filtered = filtered.filter((item) => {
+                return (
+                    item.item_code.toLowerCase().includes(term) ||
+                    item.name.toLowerCase().includes(term) ||
+                    (item.description?.toLowerCase().includes(term) ?? false)
+                );
+            });
+        }
+
+        if (statusFilter !== 'all') {
+            const isActive = statusFilter === 'active';
+            filtered = filtered.filter(item => Boolean(item.active) === isActive);
+        }
+
+        return filtered;
+    }, [items, debouncedSearch, statusFilter]);
 
     const sortedItems = useMemo(() => {
         if (!sortConfig) return filteredItems;
@@ -360,13 +391,9 @@ function ItemsPage() {
             const aValue = a[sortConfig.key];
             const bValue = b[sortConfig.key];
             let result = 0;
-            if (aValue == null && bValue == null) result = 0;
-            else if (aValue == null) result = 1;
-            else if (bValue == null) result = -1;
-            else if (typeof aValue === 'number' && typeof bValue === 'number') {
+
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
                 result = aValue - bValue;
-            } else if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
-                result = Number(aValue) - Number(bValue);
             } else {
                 result = String(aValue).localeCompare(String(bValue));
             }
@@ -377,421 +404,372 @@ function ItemsPage() {
 
     if (authLoading || isLoading) {
         return (
-            <Container className="py-5 text-center">
-                <Spinner animation="border" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                </Spinner>
-            </Container>
+            <div className="flex items-center justify-center py-12">
+                <Spinner size="lg" />
+            </div>
         );
     }
 
     return (
-        <div className="w-100 h-100">
-            <Container fluid className="py-4 px-4">
-                {/* Header */}
-                <Row className="mb-4">
-                    <Col>
-                        <h2 className="mb-0">
-                            <i className="bi bi-grid me-2"></i>
-                            Items Management
-                        </h2>
-                        <p className="text-muted">Manage inventory items and stock</p>
-                    </Col>
-                    <Col xs="auto" className="d-flex gap-2">
-                        <Button 
-                            variant="outline-primary" 
-                            onClick={handleGenerateBulkQR}
-                            disabled={isGeneratingBulk || sortedItems.length === 0}
-                        >
-                            {isGeneratingBulk ? (
-                                <>
-                                    <Spinner animation="border" size="sm" className="me-2" />
-                                    Generating...
-                                </>
-                            ) : (
-                                <>
-                                    <i className="bi bi-qr-code me-2"></i>
-                                    Generate All QR Codes
-                                </>
-                            )}
-                        </Button>
-                        <Button
-                            variant="outline-success"
-                            onClick={handleDownloadBulkPDF}
-                            disabled={isGeneratingBulk || sortedItems.length === 0}
-                        >
-                            {isGeneratingBulk ? (
-                                <>
-                                    <Spinner animation="border" size="sm" className="me-2" />
-                                    Preparing PDF...
-                                </>
-                            ) : (
-                                <>
-                                    <i className="bi bi-file-earmark-pdf-fill me-2"></i>
-                                    Download All as PDF
-                                </>
-                            )}
-                        </Button>
+        <div className="w-full h-full">
+            <div className="px-4 py-6 max-w-7xl mx-auto">
+                <div className="sm:flex sm:items-center sm:justify-between mb-8">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Items Management</h2>
+                        <p className="mt-1 text-sm text-gray-500">Manage inventory items and stock levels.</p>
+                    </div>
+                    <div className="mt-4 sm:mt-0 flex flex-wrap gap-3">
+                        {items.length > 0 && (
+                            <Button
+                                variant="outline-secondary"
+                                onClick={handleGenerateBulkQR}
+                                disabled={isGeneratingBulk || sortedItems.length === 0}
+                                className="bg-white"
+                            >
+                                {isGeneratingBulk ? (
+                                    <>
+                                        <Spinner size="sm" className="mr-2" />
+                                        Generating...
+                                    </>
+                                ) : (
+                                    'Generate All QR Codes'
+                                )}
+                            </Button>
+                        )}
+                        {totalItems > 0 && (
+                            <Button
+                                variant="outline-secondary"
+                                onClick={handleDownloadAllPDF}
+                                className="bg-white"
+                                disabled={isDownloadingAll || totalItems === 0}
+                            >
+                                {isDownloadingAll ? 'Preparing PDF...' : 'Download All as PDF'}
+                            </Button>
+                        )}
                         {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
                             <Button variant="primary" onClick={() => navigate('/items/new')}>
-                                <i className="bi bi-plus-circle me-2"></i>
+                                <Plus className="w-4 h-4 mr-2" />
                                 Add Item
                             </Button>
                         )}
-                    </Col>
-                </Row>
+                    </div>
+                </div>
 
                 {error && (
-                    <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                    <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-4">
                         {error}
                     </Alert>
                 )}
 
-                {/* Items Table */}
-                <Card className="shadow-sm">
-                    <Card.Header className="bg-white border-bottom">
-                        <Row className="align-items-center">
-                            <Col>
-                                <h5 className="mb-0">
-                                    Items ({filteredItems.length} / {totalItems})
-                                </h5>
-                            </Col>
-                        </Row>
-                    </Card.Header>
-                    <Card.Body className="p-0">
-                        {items.length === 0 ? (
-                            <div className="text-center text-muted py-5">
-                                <i className="bi bi-inbox fs-1 d-block mb-3"></i>
-                                <p className="mb-0">No items found</p>
+                <Card className="shadow-sm mb-6">
+                    <CardHeader className="bg-gray-50">
+                        <h5 className="text-lg font-semibold text-gray-900">
+                            Items ({sortedItems.length} / {totalItems})
+                        </h5>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label className="form-label">Search</label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        className="form-control pl-10"
+                                        placeholder="Search by code, name, or description"
+                                        value={searchInput}
+                                        onChange={(e) => {
+                                            setSearchInput(e.target.value);
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="form-label">Status</label>
+                                <select
+                                    className="form-select"
+                                    value={statusFilter}
+                                    onChange={(e) => {
+                                        setStatusFilter(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                >
+                                    <option value="all">All Statuses</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardBody className="p-0">
+                        {sortedItems.length === 0 ? (
+                            <div className="text-center text-gray-500 py-12">
+                                <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                <p className="text-lg">No items found</p>
                             </div>
                         ) : (
-                            <div className="table-responsive">
-                                <Table hover className="mb-0 align-middle">
-                                    <thead className="table-light">
+                        <div className="table-responsive">
+                            <table className="table">
+                                    <thead>
                                         <tr>
-                                            <th style={{ width: '120px' }}>QR Code</th>
-                                            <th onClick={() => handleSort('item_code')} style={{ cursor: 'pointer', width: '140px' }}>
+                                            <th className="w-32 text-xs uppercase tracking-wide text-gray-500">QR Code</th>
+                                            <th
+                                                className="cursor-pointer hover:bg-gray-200 text-xs uppercase tracking-wide text-gray-500"
+                                                onClick={() => handleSort('item_code')}
+                                            >
                                                 Item Code {getSortIndicator('item_code')}
                                             </th>
-                                            <th onClick={() => handleSort('name')} style={{ cursor: 'pointer', width: '220px' }}>
+                                            <th
+                                                className="cursor-pointer hover:bg-gray-200 text-xs uppercase tracking-wide text-gray-500"
+                                                onClick={() => handleSort('name')}
+                                            >
                                                 Name {getSortIndicator('name')}
                                             </th>
-                                            <th onClick={() => handleSort('description')} style={{ cursor: 'pointer' }}>
-                                                Description {getSortIndicator('description')}
-                                            </th>
-                                            <th onClick={() => handleSort('min_stock')} style={{ cursor: 'pointer' }}>
-                                                Min Stock {getSortIndicator('min_stock')}
-                                            </th>
-                                            <th onClick={() => handleSort('active')} style={{ cursor: 'pointer' }}>
-                                                Status {getSortIndicator('active')}
-                                            </th>
-                                            <th style={{ width: '180px' }}>Actions</th>
-                                        </tr>
-                                        <tr>
-                                            <th></th>
-                                            <th>
-                                                <Form.Control
-                                                    size="sm"
-                                                    placeholder="Filter Item Code"
-                                                    value={filters.item_code}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, item_code: e.target.value }))}
-                                                />
-                                            </th>
-                                            <th>
-                                                <Form.Control
-                                                    size="sm"
-                                                    placeholder="Filter name"
-                                                    value={filters.name}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
-                                                />
-                                            </th>
-                                            <th>
-                                                <Form.Control
-                                                    size="sm"
-                                                    placeholder="Filter description"
-                                                    value={filters.description}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, description: e.target.value }))}
-                                                />
-                                            </th>
-                                            <th>
-                                                <div className="d-flex gap-1">
-                                                    <Form.Control
-                                                        size="sm"
-                                                        type="number"
-                                                        step="1"
-                                                        min="0"
-                                                        placeholder="Min"
-                                                        value={filters.minStockMin}
-                                                        onChange={(e) => setFilters((prev) => ({ ...prev, minStockMin: e.target.value }))}
-                                                    />
-                                                </div>
-                                            </th>
-                                            <th>
-                                                <Form.Select
-                                                    size="sm"
-                                                    value={filters.status}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-                                                >
-                                                    <option value="all">All</option>
-                                                    <option value="active">Active</option>
-                                                    <option value="inactive">Inactive</option>
-                                                </Form.Select>
-                                            </th>
-                                            <th></th>
+                                            <th className="text-xs uppercase tracking-wide text-gray-500">Description</th>
+                                            <th className="text-center text-xs uppercase tracking-wide text-gray-500">Min Stock</th>
+                                            <th className="text-center text-xs uppercase tracking-wide text-gray-500">Status</th>
+                                            <th className="w-56 text-right text-xs uppercase tracking-wide text-gray-500">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {sortedItems.map((item) => (
                                             <tr
                                                 key={item.id}
-                                                style={{ cursor: 'pointer' }}
+                                                className="cursor-pointer hover:bg-gray-50"
                                                 onClick={() => handleRowClick(item)}
                                             >
                                                 <td onClick={(e) => e.stopPropagation()}>
                                                     <Button
                                                         variant="outline-secondary"
                                                         size="sm"
+                                                        className="text-xs"
                                                         onClick={() => handleGenerateQR(item)}
                                                     >
-                                                        <i className="bi bi-qr-code me-1"></i>
                                                         Generate
                                                     </Button>
                                                 </td>
-                                                <td style={{ whiteSpace: 'nowrap' }}>
-                                                    <code className="text-primary fw-bold">
+                                                <td>
+                                                    <code className="text-primary font-mono text-sm">
                                                         {item.item_code}
                                                     </code>
                                                 </td>
-                                                <td className="fw-semibold text-truncate" style={{ maxWidth: '220px' }}>
-                                                    {item.name}
+                                                <td className="font-semibold text-gray-900">{item.name}</td>
+                                                <td className="text-sm text-gray-500">
+                                                    {item.description || '-'}
                                                 </td>
-                                                <td>
-                                                    <span title={item.description || '-'}>
-                                                        {item.description
-                                                            ? item.description.substring(0, 40) +
-                                                              (item.description.length > 40 ? '...' : '')
-                                                            : '-'}
+                                                <td className="text-center">
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                        {item.min_stock.toFixed(1)}
                                                     </span>
                                                 </td>
-                                                <td>
-                                                    <Badge bg="info">
-                                                        {typeof item.min_stock === 'number'
-                                                            ? item.min_stock.toFixed(1)
-                                                            : '0.0'}
-                                                    </Badge>
-                                                </td>
-                                                <td>
-                                                    <Badge bg={item.active ? 'success' : 'danger'}>
+                                                <td className="text-center">
+                                                    <Badge variant={item.active ? 'success' : 'danger'}>
                                                         {item.active ? 'Active' : 'Inactive'}
                                                     </Badge>
                                                 </td>
-                                                <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                                                <td onClick={(e) => e.stopPropagation()} className="text-right">
                                                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
-                                                        <>
+                                                        <div className="flex gap-2 justify-end">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
-                                                                className="me-2"
+                                                                className="text-xs"
                                                                 onClick={() => navigate(`/items/${item.id}/edit`)}
                                                             >
-                                                                <i className="bi bi-pencil me-1"></i>
+                                                                <Pencil className="w-4 h-4 mr-1" />
                                                                 Edit
                                                             </Button>
                                                             {currentUser?.role === 'ADMIN' && (
                                                                 <Button
                                                                     variant="outline-danger"
                                                                     size="sm"
+                                                                    className="text-xs"
                                                                     onClick={() => handleDeleteItem(item.id)}
                                                                 >
-                                                                    <i className="bi bi-trash me-1"></i>
+                                                                    <Trash2 className="w-4 h-4 mr-1" />
                                                                     Delete
                                                                 </Button>
                                                             )}
-                                                        </>
+                                                        </div>
                                                     )}
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                </Table>
+                                </table>
                             </div>
                         )}
-                    </Card.Body>
+                    </CardBody>
                     {totalPages > 1 && (
-                        <Card.Footer className="bg-white border-top">
-                            <div className="d-flex justify-content-between align-items-center">
-                                <span className="text-muted">
-                                    Showing {((currentPage - 1) * pageSize) + 1} to{' '}
-                                    {Math.min(currentPage * pageSize, totalItems)} of {totalItems}
-                                </span>
-                                <Pagination className="mb-0">
-                                    <Pagination.Prev
-                                        disabled={currentPage === 1}
-                                        onClick={() => setCurrentPage(currentPage - 1)}
-                                    />
-                                    {[...Array(Math.min(5, totalPages))].map((_, index) => {
-                                        let pageNum;
-                                        if (totalPages <= 5) {
-                                            pageNum = index + 1;
-                                        } else if (currentPage <= 3) {
-                                            pageNum = index + 1;
-                                        } else if (currentPage >= totalPages - 2) {
-                                            pageNum = totalPages - 4 + index;
-                                        } else {
-                                            pageNum = currentPage - 2 + index;
-                                        }
-                                        return (
-                                            <Pagination.Item
-                                                key={pageNum}
-                                                active={currentPage === pageNum}
-                                                onClick={() => setCurrentPage(pageNum)}
-                                            >
-                                                {pageNum}
-                                            </Pagination.Item>
-                                        );
-                                    })}
-                                    <Pagination.Next
-                                        disabled={currentPage === totalPages}
-                                        onClick={() => setCurrentPage(currentPage + 1)}
-                                    />
-                                </Pagination>
-                            </div>
-                        </Card.Footer>
+                        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                            <PaginationInfo currentPage={currentPage} pageSize={pageSize} totalItems={totalItems} />
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={setCurrentPage}
+                            />
+                        </div>
                     )}
                 </Card>
-            </Container>
+            </div>
 
-            {/* Single QR Code Modal */}
-            <Modal show={showQRModal} onHide={() => setShowQRModal(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>QR Code - {selectedItemForQR?.name}</Modal.Title>
-                </Modal.Header>
-                <Modal.Body className="text-center">
-                    {selectedItemForQR && (
-                        <>
-                            <img src={qrDataUrl} alt="QR Code" className="img-fluid mb-3" />
-                            <Card className="text-start">
-                                <Card.Body>
-                                    <h6 className="mb-3">QR Code contains:</h6>
-                                    <p className="mb-1"><strong>Item ID:</strong> {selectedItemForQR.id}</p>
-                                    <p className="mb-1"><strong>Item Code:</strong> {selectedItemForQR.item_code}</p>
-                                    <p className="mb-1"><strong>Name:</strong> {selectedItemForQR.name}</p>
-                                    <p className="mb-1"><strong>Category:</strong> {getCategoryName(selectedItemForQR.category_id)}</p>
-                                    <p className="mb-1"><strong>Owner:</strong> {getUserName(selectedItemForQR.owner_user_id)}</p>
-                                    <p className="mb-0"><strong>Status:</strong> {selectedItemForQR.active ? 'Active' : 'Inactive'}</p>
-                                </Card.Body>
-                            </Card>
-                        </>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowQRModal(false)}>
-                        Close
-                    </Button>
-                    <Button variant="primary" onClick={handleDownloadQR}>
-                        <i className="bi bi-download me-2"></i>
-                        Download QR Code
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* Bulk QR Codes Modal */}
-            <Modal show={showBulkQRModal} onHide={() => setShowBulkQRModal(false)} size="xl" scrollable>
-                <Modal.Header closeButton>
-                    <Modal.Title>All QR Codes ({bulkQRCodes.length} items)</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Row className="g-4">
-                        {bulkQRCodes.map(({ item, dataUrl }) => (
-                            <Col md={4} key={item.id}>
-                                <Card>
-                                    <Card.Body className="text-center">
-                                        <img src={dataUrl} alt={`QR Code for ${item.item_code}`} className="img-fluid mb-2" style={{ maxWidth: '200px' }} />
-                                        <h6 className="mb-1">{item.item_code}</h6>
-                                        <p className="text-muted small mb-0">{item.name}</p>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
+            {/* Bulk QR Modal */}
+            <Modal show={showBulkQRModal} onHide={() => setShowBulkQRModal(false)} size="lg">
+                <ModalHeader onClose={() => setShowBulkQRModal(false)}>
+                    Generated QR Codes
+                </ModalHeader>
+                <ModalBody>
+                    <div className="grid grid-cols-3 gap-4">
+                        {bulkQRCodes.map((item) => (
+                            <div key={item.item_code} className="text-center">
+                                <img src={item.dataUrl} alt={`QR for ${item.item_code}`} className="w-full mb-2" />
+                                <p className="text-sm font-semibold">{item.item_code}</p>
+                                <p className="text-xs text-gray-500">{item.name}</p>
+                            </div>
                         ))}
-                    </Row>
-                </Modal.Body>
-                <Modal.Footer>
+                    </div>
+                </ModalBody>
+                <ModalFooter>
                     <Button variant="secondary" onClick={() => setShowBulkQRModal(false)}>
                         Close
                     </Button>
                     <Button variant="primary" onClick={handleDownloadBulkPDF}>
-                        <i className="bi bi-download me-2"></i>
-                        Download All ({bulkQRCodes.length})
+                        <Download className="w-4 h-4 mr-2" />
+                        Download PDF ({bulkQRCodes.length})
                     </Button>
-                </Modal.Footer>
+                </ModalFooter>
+            </Modal>
+
+            {/* QR Preview Modal */}
+            <Modal show={Boolean(qrPreview)} onHide={() => setQrPreview(null)} size="md">
+                <ModalHeader onClose={() => setQrPreview(null)}>
+                    QR Code Preview
+                </ModalHeader>
+                <ModalBody>
+                    {qrPreview && (
+                        <div className="space-y-4">
+                            <img
+                                src={qrPreview.dataUrl}
+                                alt={`QR for ${qrPreview.item.item_code}`}
+                                className="w-full max-w-xs mx-auto"
+                            />
+                            <div className="text-sm text-gray-600 space-y-2">
+                                <div>
+                                    <span className="font-semibold text-gray-900">Item Code:</span>{' '}
+                                    <span className="font-mono text-primary">{qrPreview.item.item_code}</span>
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-gray-900">Name:</span> {qrPreview.item.name}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-gray-900">Category:</span>{' '}
+                                    {getCategoryName(qrPreview.item.category_id)}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-gray-900">Owner:</span>{' '}
+                                    {getUserName(qrPreview.item.owner_user_id)}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-gray-900">Status:</span>{' '}
+                                    {qrPreview.item.active ? 'Active' : 'Inactive'}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </ModalBody>
+                <ModalFooter>
+                    <Button variant="secondary" onClick={() => setQrPreview(null)}>
+                        Close
+                    </Button>
+                </ModalFooter>
             </Modal>
 
             {/* Item Details Modal */}
             <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Item Details</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
+                <ModalHeader onClose={() => setShowModal(false)}>
+                    Item Details
+                </ModalHeader>
+                <ModalBody>
                     {selectedItem && (
-                        <Row className="g-3">
-                            <Col md={6}>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
                                 <strong>Item Code:</strong>
-                                <p><code className="text-primary">{selectedItem.item_code}</code></p>
-                            </Col>
-                            <Col md={6}>
-                                <strong>Serial Number:</strong>
-                                <p><code className="text-primary">{selectedItem.serial_number || '-'}</code></p>
-                            </Col>
-                            <Col md={6}>
-                                <strong>Name:</strong>
-                                <p>{selectedItem.name}</p>
-                            </Col>
-                            <Col md={6}>
-                                <strong>Category:</strong>
-                                <p>{getCategoryName(selectedItem.category_id)}</p>
-                            </Col>
-                            <Col md={6}>
-                                <strong>Owner:</strong>
-                                <p>{getUserName(selectedItem.owner_user_id)}</p>
-                            </Col>
-                            <Col md={6}>
-                                <strong>QR Data:</strong>
-                                <p>{selectedItem.qrcode || '-'}</p>
-                            </Col>
-                            <Col md={6}>
-                                <strong>Description:</strong>
-                                <p>{selectedItem.description || '-'}</p>
-                            </Col>
-                            <Col md={6}>
-                                <strong>Minimum Stock:</strong>
-                                <p>{selectedItem.min_stock.toFixed(2)}</p>
-                            </Col>
-                            <Col md={6}>
+                                <p className="text-blue-600 font-mono">{selectedItem.item_code}</p>
+                            </div>
+                            <div>
                                 <strong>Status:</strong>
                                 <p>
-                                    <Badge bg={selectedItem.active ? 'success' : 'danger'}>
+                                    <Badge variant={selectedItem.active ? 'success' : 'danger'}>
                                         {selectedItem.active ? 'Active' : 'Inactive'}
                                     </Badge>
                                 </p>
-                            </Col>
+                            </div>
+                            <div className="col-span-2">
+                                <strong>Name:</strong>
+                                <p className="font-semibold">{selectedItem.name}</p>
+                            </div>
+                            <div className="col-span-2">
+                                <strong>Description:</strong>
+                                <p>{selectedItem.description || '-'}</p>
+                            </div>
+                            <div>
+                                <strong>Category:</strong>
+                                <p>{getCategoryName(selectedItem.category_id)}</p>
+                            </div>
+                            <div>
+                                <strong>Unit:</strong>
+                                <p>{units.find(u => u.id === selectedItem.unit_id)?.name || '-'}</p>
+                            </div>
+                            <div>
+                                <strong>Min Stock:</strong>
+                                <p>{selectedItem.min_stock.toFixed(2)}</p>
+                            </div>
+                            <div>
+                                <strong>Owner:</strong>
+                                <p>{getUserName(selectedItem.owner_user_id)}</p>
+                            </div>
                             {selectedItem.image_url && (
-                                <Col md={12}>
+                                <div className="col-span-2">
                                     <strong>Image:</strong>
-                                    <p>
-                                        <a href={selectedItem.image_url} target="_blank" rel="noopener noreferrer">
-                                            View Image
-                                        </a>
-                                    </p>
-                                </Col>
+                                    <a
+                                        href={selectedItem.image_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:underline"
+                                    >
+                                        View Image
+                                    </a>
+                                </div>
                             )}
-                        </Row>
+                        </div>
                     )}
-                </Modal.Body>
-                <Modal.Footer>
+                </ModalBody>
+                <ModalFooter>
+                    {selectedItem && (currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
+                        <>
+                            <Button
+                                variant="outline-primary"
+                                onClick={() => {
+                                    navigate(`/items/${selectedItem.id}/edit`);
+                                    setShowModal(false);
+                                }}
+                            >
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Edit
+                            </Button>
+                            {currentUser?.role === 'ADMIN' && (
+                                <Button
+                                    variant="outline-danger"
+                                    onClick={() => handleDeleteItem(selectedItem.id)}
+                                >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete
+                                </Button>
+                            )}
+                        </>
+                    )}
                     <Button variant="secondary" onClick={() => setShowModal(false)}>
                         Close
                     </Button>
-                </Modal.Footer>
+                </ModalFooter>
             </Modal>
         </div>
     );

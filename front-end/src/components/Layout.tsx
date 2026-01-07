@@ -1,11 +1,19 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Container, Button, Badge, Offcanvas } from 'react-bootstrap';
-import './Layout.css';
+import { Menu, X, ChevronDown, ChevronRight, LogOut } from 'lucide-react';
+import { Badge, IconComponent } from './UI';
 
 interface LayoutProps {
     children: React.ReactNode;
+}
+
+interface MenuItem {
+    path: string;
+    icon: string;
+    label: string;
+    subMenu?: MenuItem[];
+    action?: 'logout';
 }
 
 function Layout({ children }: LayoutProps) {
@@ -14,230 +22,253 @@ function Layout({ children }: LayoutProps) {
     const location = useLocation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [itemsMenuOpen, setItemsMenuOpen] = useState(false);
-    const [itemsMenuOpenMobile, setItemsMenuOpenMobile] = useState(false);
-    const logoUrl = new URL('../../assets/sgi-logo.png', import.meta.url).href;
 
     const handleLogout = () => {
         logout();
         navigate('/login');
     };
 
-    const menuItems = [
-        { path: '/dashboard', icon: 'bi-speedometer2', label: 'Dashboard' },
-        { 
-            path: '/items', 
-            icon: 'bi-grid', 
+    const dashboardItem: MenuItem = { path: '/dashboard', icon: 'bi-speedometer2', label: 'Dashboard' };
+    const managementItems: MenuItem[] = [
+        {
+            path: '/items',
+            icon: 'bi-grid',
             label: 'Items',
             subMenu: [
                 { path: '/items', icon: 'bi-box', label: 'All Items' },
                 { path: '/categories', icon: 'bi-tag', label: 'Categories' },
                 { path: '/units', icon: 'bi-rulers', label: 'Units' },
-            ]
+            ],
         },
-        { path: '/transactions', icon: 'bi-arrow-left-right', label: 'Transactions' },
     ];
 
-    // Only show for admin
+    const transactionItems: MenuItem[] = [
+        { path: '/transactions', icon: 'bi-receipt', label: 'Transactions' },
+    ];
+
+    const adminItems: MenuItem[] = [];
     if (user?.role === 'ADMIN') {
-        menuItems.push({ path: '/users', icon: 'bi-people', label: 'Users' });
-        menuItems.push({ path: '/settings', icon: 'bi-gear', label: 'Settings' });
+        adminItems.push({ path: '/users', icon: 'bi-people', label: 'Users' });
+        adminItems.push({ path: '/settings', icon: 'bi-gear', label: 'Settings' });
     }
 
     const isActive = (path: string) => location.pathname === path;
     const isItemsMenuActive = () => {
-        return location.pathname === '/items' || 
-               location.pathname === '/categories' || 
-               location.pathname === '/units';
+        return location.pathname === '/items' ||
+            location.pathname === '/categories' ||
+            location.pathname === '/units';
     };
 
+    const renderMenuItems = (items: MenuItem[], isMobile: boolean = false) => (
+        <>
+            {items.map((item) => (
+                <div key={item.path}>
+                    <button
+                        className={`w-full text-start px-3 py-2 rounded-full transition-colors flex items-center justify-between text-sm font-medium ${
+                            item.subMenu
+                                ? isItemsMenuActive()
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                                : isActive(item.path)
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                        }`}
+                        onClick={() => {
+                            if (item.subMenu) {
+                                setItemsMenuOpen(!itemsMenuOpen);
+                            } else if (item.action === 'logout') {
+                                handleLogout();
+                            } else {
+                                navigate(item.path);
+                                if (isMobile) setSidebarOpen(false);
+                            }
+                        }}
+                    >
+                        <div className="flex items-center gap-2">
+                            <IconComponent name={item.icon} size={16} />
+                            <span>{item.label}</span>
+                        </div>
+                        {item.subMenu && (
+                            itemsMenuOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                        )}
+                    </button>
+
+                    {item.subMenu && itemsMenuOpen && (
+                        <div className="ml-6 mt-1 flex flex-col gap-1">
+                            {item.subMenu.map((subItem) => (
+                                <button
+                                    key={subItem.path}
+                                    className={`w-full text-start px-3 py-2 rounded-full transition-colors flex items-center gap-2 text-sm ${
+                                        isActive(subItem.path)
+                                            ? 'bg-blue-600 text-white'
+                                            : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                                    }`}
+                                    onClick={() => {
+                                        navigate(subItem.path);
+                                        if (isMobile) setSidebarOpen(false);
+                                    }}
+                                >
+                                    <IconComponent name={subItem.icon} size={14} />
+                                    {subItem.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            ))}
+        </>
+    );
+
     return (
-        <div className="d-flex" style={{ minHeight: '100vh' }}>
+        <div className="flex min-h-screen bg-gray-100">
             {/* Desktop Sidebar */}
-            <div className="sidebar d-none d-lg-flex flex-column bg-dark text-white" style={{ width: '250px' }}>
-                <div className="sidebar-header p-3 border-bottom border-secondary">
-                    <div className="d-flex align-items-center">
-                        <img src={logoUrl} alt="SGI logo" className="brand-logo brand-logo-lg me-2"/>
-                        <h5 className="mb-0">Inventory Management System</h5>
+            <div className="hidden lg:flex lg:flex-col bg-gray-900 text-white w-64 fixed inset-y-0 left-0 shadow-lg">
+                <div className="border-b border-gray-700 p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-gradient-to-br from-gray-700 to-gray-600 flex items-center justify-center text-xs font-bold border border-gray-600">
+                            SGi
+                        </div>
+                        <div className="leading-tight">
+                            <div className="font-semibold text-sm">Inventory</div>
+                            <div className="font-semibold text-sm">Management</div>
+                            <div className="font-semibold text-sm">System</div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="grow overflow-auto">
-                    <nav className="nav flex-column p-3">
-                        {menuItems.map((item) => (
-                            <div
-                                key={item.path}
-                                onMouseEnter={() => {
-                                    if (item.subMenu) setItemsMenuOpen(true);
-                                }}
-                                onMouseLeave={() => {
-                                    if (item.subMenu) setItemsMenuOpen(false);
-                                }}
-                            >
-                                <button
-                                    className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded w-100 ${
-                                        item.subMenu 
-                                            ? (isItemsMenuActive() ? 'active bg-primary' : '')
-                                            : (isActive(item.path) ? 'active bg-primary' : '')
-                                    }`}
-                                    onClick={() => {
-                                        if (item.subMenu) {
-                                            navigate(item.path);
-                                        } else {
-                                            navigate(item.path);
-                                        }
-                                    }}
-                                >
-                                    <i className={`bi ${item.icon} me-2`}></i>
-                                    {item.label}
-                                    {item.subMenu && (
-                                        <i className={`bi ${itemsMenuOpen ? 'bi-chevron-down' : 'bi-chevron-right'} float-end`}></i>
-                                    )}
-                                </button>
-                                {item.subMenu && itemsMenuOpen && (
-                                    <div className="ms-3">
-                                        {item.subMenu.map((subItem) => (
-                                            <button
-                                                key={subItem.path}
-                                                className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded w-100 ${
-                                                    isActive(subItem.path) ? 'active bg-primary' : ''
-                                                }`}
-                                                onClick={() => navigate(subItem.path)}
-                                            >
-                                                <i className={`bi ${subItem.icon} me-2`}></i>
-                                                {subItem.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                <div className="flex-1 overflow-y-auto">
+                    <nav className="flex flex-col gap-1 px-3 py-4">
+                        {renderMenuItems([dashboardItem])}
+                        <div className="pt-2 pb-1">
+                            <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Management</p>
+                        </div>
+                        {renderMenuItems(managementItems)}
+                        <div className="pt-2 pb-1">
+                            <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Transaction</p>
+                        </div>
+                        {renderMenuItems(transactionItems)}
+                        {adminItems.length > 0 && (
+                            <>
+                                <div className="pt-2 pb-1">
+                                    <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Admin</p>
+                                </div>
+                                {renderMenuItems(adminItems)}
+                            </>
+                        )}
                     </nav>
                 </div>
 
                 {user && (
-                    <div className="sidebar-footer border-top border-secondary p-3">
-                        <div className="d-flex align-items-center mb-2">
-                            <div className="grow">
-                                <div className="fw-bold small">{user.name}</div>
-                                <Badge bg="primary" className="small">{user.role}</Badge>
-                            </div>
+                    <div className="border-t border-gray-700 p-4">
+                        <div className="mb-3">
+                            <div className="font-bold text-sm">{user.name}</div>
+                            <Badge variant="primary">{user.role}</Badge>
                         </div>
-                        <Button
-                            variant="outline-light"
-                            size="sm"
-                            className="w-100"
+                        <button
+                            className="w-full flex items-center justify-center px-4 py-2 border border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-300 bg-transparent hover:bg-gray-800 hover:text-white transition-colors"
                             onClick={handleLogout}
                         >
-                            <i className="bi bi-box-arrow-right me-1"></i>
+                            <LogOut size={16} className="mr-2" />
                             Logout
-                        </Button>
+                        </button>
                     </div>
                 )}
             </div>
 
-            {/* Mobile Offcanvas Sidebar */}
-            <Offcanvas
-                show={sidebarOpen}
-                onHide={() => setSidebarOpen(false)}
-                className="bg-dark text-white"
-            >
-                <Offcanvas.Header closeButton closeVariant="white" className="border-bottom border-secondary">
-                    <Offcanvas.Title>
-                        <img src={logoUrl} alt="SGI logo" className="brand-logo me-2" />
-                        Inventory Management System
-                    </Offcanvas.Title>
-                </Offcanvas.Header>
-                <Offcanvas.Body>
-                    <nav className="nav flex-column">
-                        {menuItems.map((item) => (
-                            <div key={item.path}>
-                                <button
-                                    className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded w-100 ${
-                                        item.subMenu 
-                                            ? (isItemsMenuActive() ? 'active bg-primary' : '')
-                                            : (isActive(item.path) ? 'active bg-primary' : '')
-                                    }`}
-                                    onClick={() => {
-                                        if (item.subMenu) {
-                                            setItemsMenuOpenMobile(!itemsMenuOpenMobile);
-                                        } else {
-                                            navigate(item.path);
-                                            setSidebarOpen(false);
-                                        }
-                                    }}
-                                >
-                                    <i className={`bi ${item.icon} me-2`}></i>
-                                    {item.label}
-                                    {item.subMenu && (
-                                        <i className={`bi ${itemsMenuOpenMobile ? 'bi-chevron-down' : 'bi-chevron-right'} float-end`}></i>
-                                    )}
-                                </button>
-                                {item.subMenu && itemsMenuOpenMobile && (
-                                    <div className="ms-3">
-                                        {item.subMenu.map((subItem) => (
-                                            <button
-                                                key={subItem.path}
-                                                className={`nav-link text-white text-start border-0 bg-transparent px-3 py-2 mb-1 rounded w-100 ${
-                                                    isActive(subItem.path) ? 'active bg-primary' : ''
-                                                }`}
-                                                onClick={() => {
-                                                    navigate(subItem.path);
-                                                    setSidebarOpen(false);
-                                                }}
-                                            >
-                                                <i className={`bi ${subItem.icon} me-2`}></i>
-                                                {subItem.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </nav>
-
-                    {user && (
-                        <div className="mt-auto pt-3 border-top border-secondary">
-                            <div className="mb-3">
-                                <div className="fw-bold">{user.name}</div>
-                                <Badge bg="primary">{user.role}</Badge>
-                            </div>
-                            <Button
-                                variant="outline-light"
-                                className="w-100"
-                                onClick={handleLogout}
-                            >
-                                <i className="bi bi-box-arrow-right me-1"></i>
-                                Logout
-                            </Button>
-                        </div>
-                    )}
-                </Offcanvas.Body>
-            </Offcanvas>
-
-            {/* Main Content Area */}
-            <div className="grow d-flex flex-column main-content-wrapper">
-                {/* Top Navigation Bar (Mobile) */}
-                <nav className="navbar navbar-dark bg-dark shadow-sm d-lg-none">
-                    <Container fluid>
-                        <Button
-                            variant="outline-light"
-                            size="sm"
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col lg:ml-64">
+                {/* Mobile Top Bar */}
+                <nav className="lg:hidden bg-gray-900 text-white shadow-lg sticky top-0 z-40">
+                    <div className="px-4 py-3 flex items-center justify-between">
+                        <button
                             onClick={() => setSidebarOpen(true)}
+                            className="text-white hover:text-gray-300"
                         >
-                            <i className="bi bi-list fs-5"></i>
-                        </Button>
-                        <div className="navbar-brand mb-0 h5 d-flex align-items-center">
-                            <img src={logoUrl} alt="SGI logo" className="brand-logo me-2" />
-                            <span>Inventory Management System</span>
+                            <Menu size={24} />
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded bg-gradient-to-br from-gray-700 to-gray-600 flex items-center justify-center text-xs font-bold border border-gray-600">
+                                SGi
+                            </div>
+                            <span className="font-semibold text-sm">Inventory</span>
                         </div>
-                        <div style={{ width: '40px' }}></div>
-                    </Container>
+                        <div className="w-6" />
+                    </div>
                 </nav>
 
                 {/* Page Content */}
-                <main className="grow bg-light" style={{ width: '100%' }}>
+                <main className="flex-1 overflow-y-auto">
                     {children}
                 </main>
+            </div>
+
+            {/* Mobile Sidebar Backdrop */}
+            {sidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+
+            {/* Mobile Sidebar */}
+            <div className={`fixed inset-y-0 left-0 w-64 bg-gray-900 text-white z-50 lg:hidden transform transition-transform ${
+                sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}>
+                <div className="border-b border-gray-700 p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-gradient-to-br from-gray-700 to-gray-600 flex items-center justify-center text-xs font-bold border border-gray-600">
+                            SGi
+                        </div>
+                        <div className="leading-tight">
+                            <div className="font-semibold text-sm">Inventory</div>
+                            <div className="font-semibold text-sm">Management</div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setSidebarOpen(false)}
+                        className="text-white hover:text-gray-300"
+                    >
+                        <X size={24} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto">
+                    <nav className="flex flex-col gap-1 px-3 py-4">
+                        {renderMenuItems([dashboardItem], true)}
+                        <div className="pt-2 pb-1">
+                            <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Management</p>
+                        </div>
+                        {renderMenuItems(managementItems, true)}
+                        <div className="pt-2 pb-1">
+                            <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Transaction</p>
+                        </div>
+                        {renderMenuItems(transactionItems, true)}
+                        {adminItems.length > 0 && (
+                            <>
+                                <div className="pt-2 pb-1">
+                                    <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Admin</p>
+                                </div>
+                                {renderMenuItems(adminItems, true)}
+                            </>
+                        )}
+                    </nav>
+                </div>
+
+                {user && (
+                    <div className="border-t border-gray-700 p-4">
+                        <div className="mb-3">
+                            <div className="font-bold text-sm">{user.name}</div>
+                            <Badge variant="primary">{user.role}</Badge>
+                        </div>
+                        <button
+                            className="w-full flex items-center justify-center px-4 py-2 border border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-300 bg-transparent hover:bg-gray-800 hover:text-white transition-colors"
+                            onClick={handleLogout}
+                        >
+                            <LogOut size={16} className="mr-2" />
+                            Logout
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

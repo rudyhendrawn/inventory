@@ -86,53 +86,53 @@
 # Frontend Refactoring Checklist: Bootstrap → Tailwind CSS
 
 ## Phase 0: Setup (Complete First)
-- [ ] `npm install -D tailwindcss postcss autoprefixer`
-- [ ] `npm install lucide-react`
-- [ ] `npx tailwindcss init -p`
-- [ ] Create `tailwind.config.ts`
-- [ ] Update `src/index.css` with Tailwind directives
-- [ ] Keep Bootstrap installed (for gradual migration)
-- [ ] Update `package.json` scripts (add build step)
+- [x] `npm install -D tailwindcss postcss autoprefixer`
+- [x] `npm install lucide-react`
+- [x] `npx @tailwindcss/cli init -p`, using tailwind version 4.1.18
+- [x] Update `src/index.css` with Tailwind directives
+- [x] Update `src/main.tsx` (remove Bootstrap CSS, add index.css)
 
 ## Phase 1: Shared UI Components (Week 1)
-- [ ] Create `src/components/UI/` folder
-- [ ] Migrate `Button.tsx`
-- [ ] Migrate `Card.tsx` + `CardHeader`, `CardBody`, `CardFooter`
-- [ ] Migrate `Badge.tsx`
-- [ ] Migrate `Alert.tsx`
-- [ ] Migrate `Modal.tsx`
-- [ ] Migrate `Spinner.tsx`
-- [ ] Migrate `Pagination.tsx`
-- [ ] Migrate `Form.tsx` (FormGroup, FormControl, FormLabel, FormSelect, FormCheck)
-- [ ] Create icon mapping for `lucide-react`
+- [x] Create `src/components/UI/` folder
+- [x] Create `Button.tsx`
+- [x] Create `Card.tsx` + exports
+- [x] Create `Badge.tsx`
+- [x] Create `Alert.tsx`
+- [x] Create `Modal.tsx`
+- [x] Create `Spinner.tsx`
+- [x] Create `index.ts` barrel export
+- [x] Create `Pagination.tsx`
+- [x] Create `Form.tsx` components
+- [x] Create icon mapping for `lucide-react`
 - [ ] Test all components in Storybook (optional)
 
 ## Phase 2: Simple List Pages (Week 2)
-- [ ] `CategoryPage.tsx` ⭐ START HERE (simplest)
-- [ ] `UnitPage.tsx`
-- [ ] `UsersPage.tsx`
-- [ ] `ItemsPage.tsx`
-- [ ] Test search, filter, pagination on each
+- [x] `CategoryPage.tsx` ⭐ START HERE (simplest)
+- [x] `UnitPage.tsx`
+- [x] `UsersPage.tsx`
+- [x] `ItemsPage.tsx`
+- [x] `Dashboard.tsx`
+- [x] Test search, filter, pagination on each
 
 ## Phase 3: Layout & Navigation (Week 2)
-- [ ] `Layout.tsx` (sidebar + responsive)
-- [ ] Remove `Layout.css` (move to Tailwind)
+- [x] `Layout.tsx` (sidebar + responsive)
+- [x] Remove `Layout.css` (move to Tailwind)
 - [ ] Test desktop & mobile navigation
 - [ ] Verify sub-menu collapse/expand
 
 ## Phase 4: Form Pages (Week 3)
-- [ ] `CategoryPage.tsx` modal (if not done in Phase 2)
-- [ ] `UnitPage.tsx` modal (if not done in Phase 2)
-- [ ] `ItemFormPage.tsx`
-- [ ] `IssueFormPage.tsx`
-- [ ] `UserFormPage.tsx`
-- [ ] `SettingsPage.tsx`
+- [x] `CategoryPage.tsx` modal (if not done in Phase 2)
+- [x] `UnitPage.tsx` modal (if not done in Phase 2)
+- [x] `ItemFormPage.tsx`
+- [x] `IssueFormPage.tsx`
+- [x] `UserFormPage.tsx`
+- [x] `SettingsPage.tsx`
 
 ## Phase 5: Complex Pages (Week 3)
-- [ ] `Dashboard.tsx` (statistics + table)
-- [ ] `IssueDetailsPage.tsx`
-- [ ] `TransactionsPage.tsx`
-- [ ] `TransactionFormPage.tsx`
+- [x] `Dashboard.tsx` (statistics + table)
+- [x] `IssueDetailsPage.tsx`
+- [x] `TransactionsPage.tsx`
+- [x] `TransactionFormPage.tsx`
 
 ## Phase 6: Polish & Cleanup (Ongoing)
 - [ ] Remove Bootstrap imports

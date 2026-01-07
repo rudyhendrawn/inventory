@@ -1,19 +1,23 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Plus, Pencil, Trash2, Inbox } from 'lucide-react';
 import {
-    Container,
-    Row,
-    Col,
-    Card,
-    Table,
     Button,
-    Form,
+    Card,
+    CardHeader,
+    CardBody,
     Badge,
+    Alert,
     Spinner,
+    Modal,
+    ModalHeader,
+    ModalBody,
+    ModalFooter,
     Pagination,
-    Modal
-} from 'react-bootstrap';
+    PaginationInfo,
+    FormInput,
+} from './UI';
 
 interface User {
     id: number;
@@ -35,10 +39,10 @@ function UsersPage() {
     const { user: currentUser, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [users, setUsers] = useState<User[]>([]);
-    const [searchTerm, ] = useState('');
-    const [activeOnly, ] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [activeOnly, setActiveOnly] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
-    const [, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalUsers, setTotalUsers] = useState(0);
@@ -46,15 +50,6 @@ function UsersPage() {
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: keyof User; direction: 'asc' | 'desc' } | null>(null);
-    const [filters, setFilters] = useState({
-        id: '',
-        name: '',
-        email: '',
-        role: 'all',
-        status: 'all',
-        createdFrom: '',
-        createdTo: '',
-    });
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
@@ -109,6 +104,16 @@ function UsersPage() {
         }
     };
 
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+        setCurrentPage(1);
+    };
+
+    const handleActiveFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setActiveOnly(e.target.checked);
+        setCurrentPage(1);
+    };
+
     const handleRowClick = (user: User) => {
         setSelectedUser(user);
         setShowModal(true);
@@ -131,6 +136,7 @@ function UsersPage() {
                 throw new Error(err.detail || 'Failed to delete user');
             }
             fetchUsers();
+            setShowModal(false);
         } catch (err) {
             setError((err as Error).message || 'Failed to delete user');
         }
@@ -160,35 +166,17 @@ function UsersPage() {
 
     const getSortIndicator = (key: keyof User) => {
         if (sortConfig?.key !== key) return '';
-        return sortConfig.direction === 'asc' ? '^' : 'v';
+        return sortConfig.direction === 'asc' ? '▲' : '▼';
     };
 
     const filteredUsers = useMemo(() => {
-        return users.filter((user) => {
-            if (filters.id && !String(user.id).includes(filters.id)) return false;
-            if (filters.name && !user.name.toLowerCase().includes(filters.name.toLowerCase())) return false;
-            if (filters.email && !user.email.toLowerCase().includes(filters.email.toLowerCase())) return false;
-            if (filters.role !== 'all' && user.role !== filters.role) return false;
-            if (filters.status !== 'all') {
-                const isActive = Boolean(user.active);
-                if (filters.status === 'active' && !isActive) return false;
-                if (filters.status === 'inactive' && isActive) return false;
-            }
-            const createdDate = new Date(user.created_at);
-            if (filters.createdFrom) {
-                const from = new Date(filters.createdFrom);
-                if (!Number.isNaN(from.getTime()) && createdDate < from) return false;
-            }
-            if (filters.createdTo) {
-                const to = new Date(filters.createdTo);
-                if (!Number.isNaN(to.getTime())) {
-                    to.setHours(23, 59, 59, 999);
-                    if (createdDate > to) return false;
-                }
-            }
-            return true;
-        });
-    }, [users, filters]);
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return users;
+        return users.filter((user) => (
+            user.name.toLowerCase().includes(term) ||
+            user.email.toLowerCase().includes(term)
+        ));
+    }, [users, searchTerm]);
 
     const sortedUsers = useMemo(() => {
         if (!sortConfig) return filteredUsers;
@@ -197,16 +185,9 @@ function UsersPage() {
             const aValue = a[sortConfig.key];
             const bValue = b[sortConfig.key];
             let result = 0;
-            if (sortConfig.key === 'created_at') {
-                const aDate = new Date(aValue as string).getTime();
-                const bDate = new Date(bValue as string).getTime();
-                result = aDate - bDate;
-            } else if (aValue == null && bValue == null) {
-                result = 0;
-            } else if (aValue == null) {
-                result = 1;
-            } else if (bValue == null) {
-                result = -1;
+
+            if (aValue instanceof Date && bValue instanceof Date) {
+                result = aValue.getTime() - bValue.getTime();
             } else if (typeof aValue === 'number' && typeof bValue === 'number') {
                 result = aValue - bValue;
             } else {
@@ -217,166 +198,146 @@ function UsersPage() {
         return data;
     }, [filteredUsers, sortConfig]);
 
+    const displayTotal = searchTerm.trim() ? sortedUsers.length : totalUsers;
+
     if (authLoading || isLoading) {
         return (
-            <Container className="py-5 text-center">
-                <Spinner animation="border" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                </Spinner>
-            </Container>
+            <div className="flex items-center justify-center py-12">
+                <Spinner size="lg" />
+            </div>
         );
     }
 
     return (
-        <div className="w-100 h-100">
-            <Container fluid className="py-4 px-4">
+        <div className="w-full h-full">
+            <div className="px-4 py-6 max-w-7xl mx-auto">
                 {/* Header */}
-                <Row className="mb-4">
-                    <Col>
-                        <h2 className="mb-0">
-                            <i className="bi bi-people me-2"></i>
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                            <span>👥</span>
                             Users Management
                         </h2>
-                        <p className="text-muted">Manage system users and their roles</p>
-                    </Col>
+                        <p className="text-gray-600 mt-1">Manage system users and their roles</p>
+                    </div>
                     {currentUser?.role === 'ADMIN' && (
-                        <Col xs="auto">
-                            <Button variant="primary" onClick={() => navigate('/users/new')}>
-                                <i className="bi bi-plus-circle me-2"></i>
-                                Add User
-                            </Button>
-                        </Col>
+                        <Button variant="primary" onClick={() => navigate('/users/new')}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            New User
+                        </Button>
                     )}
-                </Row>
+                </div>
+
+                {/* Search & Filter */}
+                <Card className="mb-6">
+                    <CardBody>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormInput
+                                label="Search"
+                                placeholder="Search by name or email..."
+                                value={searchTerm}
+                                onChange={handleSearch}
+                            />
+                            <div className="flex items-end">
+                                <div className="flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        id="active-filter"
+                                        checked={activeOnly}
+                                        onChange={handleActiveFilterChange}
+                                        className="w-4 h-4 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <label htmlFor="active-filter" className="ml-2 text-sm text-gray-700 cursor-pointer">
+                                        Show active users only
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </CardBody>
+                </Card>
+
+                {error && (
+                    <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-4">
+                        {error}
+                    </Alert>
+                )}
 
                 {/* Users Table */}
-                <Card className="shadow-sm">
-                    <Card.Header className="bg-white border-bottom">
-                        <Row className="align-items-center">
-                                    <Col>
-                                        <h5 className="mb-0">
-                                            Users ({filteredUsers.length} / {totalUsers})
-                                        </h5>
-                                    </Col>
-                                </Row>
-                            </Card.Header>
-                    <Card.Body className="p-0">
-                        {users.length === 0 ? (
-                            <div className="text-center text-muted py-5">
-                                <i className="bi bi-inbox fs-1 d-block mb-3"></i>
-                                <p className="mb-0">No users found</p>
+                <Card>
+                    <CardHeader>
+                        <h5 className="font-bold text-lg">
+                            Users ({displayTotal})
+                        </h5>
+                    </CardHeader>
+                    <CardBody className="p-0">
+                        {sortedUsers.length === 0 ? (
+                            <div className="text-center text-gray-500 py-12">
+                                <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                <p className="text-lg">No users found</p>
                             </div>
                         ) : (
                             <div className="table-responsive">
-                                <Table hover className="mb-0 align-middle">
-                                    <thead className="table-light">
+                                <table className="table">
+                                    <thead>
                                         <tr>
-                                            <th onClick={() => handleSort('id')} style={{ cursor: 'pointer' }}>
+                                            <th
+                                                className="cursor-pointer hover:bg-gray-200 w-20"
+                                                onClick={() => handleSort('id')}
+                                            >
                                                 ID {getSortIndicator('id')}
                                             </th>
-                                            <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+                                            <th
+                                                className="cursor-pointer hover:bg-gray-200"
+                                                onClick={() => handleSort('name')}
+                                            >
                                                 Name {getSortIndicator('name')}
                                             </th>
-                                            <th onClick={() => handleSort('email')} style={{ cursor: 'pointer' }}>
+                                            <th
+                                                className="cursor-pointer hover:bg-gray-200"
+                                                onClick={() => handleSort('email')}
+                                            >
                                                 Email {getSortIndicator('email')}
                                             </th>
-                                            <th onClick={() => handleSort('role')} style={{ cursor: 'pointer' }}>
+                                            <th
+                                                className="cursor-pointer hover:bg-gray-200 w-32"
+                                                onClick={() => handleSort('role')}
+                                            >
                                                 Role {getSortIndicator('role')}
                                             </th>
-                                            <th onClick={() => handleSort('active')} style={{ cursor: 'pointer' }}>
+                                            <th
+                                                className="cursor-pointer hover:bg-gray-200 w-32"
+                                                onClick={() => handleSort('active')}
+                                            >
                                                 Status {getSortIndicator('active')}
                                             </th>
-                                            <th onClick={() => handleSort('created_at')} style={{ cursor: 'pointer' }}>
+                                            <th
+                                                className="cursor-pointer hover:bg-gray-200 w-40"
+                                                onClick={() => handleSort('created_at')}
+                                            >
                                                 Created At {getSortIndicator('created_at')}
                                             </th>
-                                            <th>Actions</th>
-                                        </tr>
-                                        <tr>
-                                            <th>
-                                                <Form.Control
-                                                    size="sm"
-                                                    placeholder="ID"
-                                                    value={filters.id}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, id: e.target.value }))}
-                                                />
-                                            </th>
-                                            <th>
-                                                <Form.Control
-                                                    size="sm"
-                                                    placeholder="Name"
-                                                    value={filters.name}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
-                                                />
-                                            </th>
-                                            <th>
-                                                <Form.Control
-                                                    size="sm"
-                                                    placeholder="Email"
-                                                    value={filters.email}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, email: e.target.value }))}
-                                                />
-                                            </th>
-                                            <th>
-                                                <Form.Select
-                                                    size="sm"
-                                                    value={filters.role}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, role: e.target.value }))}
-                                                >
-                                                    <option value="all">All</option>
-                                                    <option value="ADMIN">ADMIN</option>
-                                                    <option value="STAFF">STAFF</option>
-                                                    <option value="AUDITOR">AUDITOR</option>
-                                                </Form.Select>
-                                            </th>
-                                            <th>
-                                                <Form.Select
-                                                    size="sm"
-                                                    value={filters.status}
-                                                    onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-                                                >
-                                                    <option value="all">All</option>
-                                                    <option value="active">Active</option>
-                                                    <option value="inactive">Inactive</option>
-                                                </Form.Select>
-                                            </th>
-                                            <th>
-                                                <div className="d-flex gap-1">
-                                                    <Form.Control
-                                                        size="sm"
-                                                        type="date"
-                                                        value={filters.createdFrom}
-                                                        onChange={(e) => setFilters((prev) => ({ ...prev, createdFrom: e.target.value }))}
-                                                    />
-                                                    <Form.Control
-                                                        size="sm"
-                                                        type="date"
-                                                        value={filters.createdTo}
-                                                        onChange={(e) => setFilters((prev) => ({ ...prev, createdTo: e.target.value }))}
-                                                    />
-                                                </div>
-                                            </th>
-                                            <th></th>
+                                            <th className="w-48">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {sortedUsers.map((user) => (
                                             <tr
                                                 key={user.id}
-                                                style={{ cursor: 'pointer' }}
+                                                className="cursor-pointer hover:bg-gray-50"
                                                 onClick={() => handleRowClick(user)}
                                             >
                                                 <td>
-                                                    <code className="text-primary">{user.id}</code>
+                                                    <code className="text-blue-600 font-mono text-sm">{user.id}</code>
                                                 </td>
-                                                <td className="fw-semibold">{user.name}</td>
+                                                <td className="font-semibold">{user.name}</td>
                                                 <td>{user.email}</td>
                                                 <td>
-                                                    <Badge bg={getRoleBadgeColor(user.role)}>
+                                                    <Badge variant={getRoleBadgeColor(user.role)}>
                                                         {user.role}
                                                     </Badge>
                                                 </td>
                                                 <td>
-                                                    <Badge bg={user.active ? 'success' : 'danger'}>
+                                                    <Badge variant={user.active ? 'success' : 'danger'}>
                                                         {user.active ? 'Active' : 'Inactive'}
                                                     </Badge>
                                                 </td>
@@ -385,14 +346,13 @@ function UsersPage() {
                                                 </td>
                                                 <td onClick={(e) => e.stopPropagation()}>
                                                     {currentUser?.role === 'ADMIN' && (
-                                                        <>
+                                                        <div className="flex gap-2">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
-                                                                className="me-2"
                                                                 onClick={() => navigate(`/users/${user.id}/edit`)}
                                                             >
-                                                                <i className="bi bi-pencil me-1"></i>
+                                                                <Pencil className="w-4 h-4 mr-1" />
                                                                 Edit
                                                             </Button>
                                                             <Button
@@ -400,99 +360,80 @@ function UsersPage() {
                                                                 size="sm"
                                                                 onClick={() => handleDeleteUser(user.id)}
                                                             >
-                                                                <i className="bi bi-trash me-1"></i>
+                                                                <Trash2 className="w-4 h-4 mr-1" />
                                                                 Delete
                                                             </Button>
-                                                        </>
+                                                        </div>
                                                     )}
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                </Table>
+                                </table>
                             </div>
                         )}
-                    </Card.Body>
+                    </CardBody>
                     {totalPages > 1 && (
-                        <Card.Footer className="bg-white border-top">
-                            <div className="d-flex justify-content-between align-items-center">
-                                <span className="text-muted">
-                                    Showing {((currentPage - 1) * pageSize) + 1} to{' '}
-                                    {Math.min(currentPage * pageSize, totalUsers)} of {totalUsers}
-                                </span>
-                                <Pagination className="mb-0">
-                                    <Pagination.Prev
-                                        disabled={currentPage === 1}
-                                        onClick={() => setCurrentPage(currentPage - 1)}
-                                    />
-                                    {[...Array(totalPages)].map((_, index) => (
-                                        <Pagination.Item
-                                            key={index + 1}
-                                            active={currentPage === index + 1}
-                                            onClick={() => setCurrentPage(index + 1)}
-                                        >
-                                            {index + 1}
-                                        </Pagination.Item>
-                                    ))}
-                                    <Pagination.Next
-                                        disabled={currentPage === totalPages}
-                                        onClick={() => setCurrentPage(currentPage + 1)}
-                                    />
-                                </Pagination>
-                            </div>
-                        </Card.Footer>
+                        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                            <PaginationInfo currentPage={currentPage} pageSize={pageSize} totalItems={totalUsers} />
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={setCurrentPage}
+                            />
+                        </div>
                     )}
                 </Card>
-            </Container>
+            </div>
 
             {/* User Details Modal */}
-            <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>User Details</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
+            <Modal show={showModal} onHide={() => setShowModal(false)}>
+                <ModalHeader onClose={() => setShowModal(false)}>
+                    User Details
+                </ModalHeader>
+                <ModalBody>
                     {selectedUser && (
-                        <Row className="g-3">
-                            <Col md={6}>
+                        <div className="space-y-4">
+                            <div>
                                 <strong>ID:</strong>
                                 <p>{selectedUser.id}</p>
-                            </Col>
-                            <Col md={6}>
+                            </div>
+                            <div>
                                 <strong>Name:</strong>
                                 <p>{selectedUser.name}</p>
-                            </Col>
-                            <Col md={6}>
+                            </div>
+                            <div>
                                 <strong>Email:</strong>
                                 <p>{selectedUser.email}</p>
-                            </Col>
-                            <Col md={6}>
+                            </div>
+                            <div>
                                 <strong>Role:</strong>
                                 <p>
-                                    <Badge bg={getRoleBadgeColor(selectedUser.role)}>
+                                    <Badge variant={getRoleBadgeColor(selectedUser.role)}>
                                         {selectedUser.role}
                                     </Badge>
                                 </p>
-                            </Col>
-                            <Col md={6}>
+                            </div>
+                            <div>
                                 <strong>Status:</strong>
                                 <p>
-                                    <Badge bg={selectedUser.active ? 'success' : 'danger'}>
+                                    <Badge variant={selectedUser.active ? 'success' : 'danger'}>
                                         {selectedUser.active ? 'Active' : 'Inactive'}
                                     </Badge>
                                 </p>
-                            </Col>
-                            <Col md={6}>
+                            </div>
+                            <div>
                                 <strong>Created At:</strong>
                                 <p>{new Date(selectedUser.created_at).toLocaleString()}</p>
-                            </Col>
-                        </Row>
+                            </div>
+                        </div>
                     )}
-                </Modal.Body>
-                <Modal.Footer>
+                </ModalBody>
+                <ModalFooter>
                     <Button variant="secondary" onClick={() => setShowModal(false)}>
                         Close
                     </Button>
-                </Modal.Footer>
+                </ModalFooter>
             </Modal>
         </div>
     );

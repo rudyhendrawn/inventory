@@ -1,18 +1,20 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Plus, Pencil, Trash2, Inbox } from 'lucide-react';
 import {
-    Container,
-    Row,
-    Col,
-    Card,
-    Table,
     Button,
-    Form,
-    Spinner,
+    Card,
+    CardHeader,
+    CardBody,
     Alert,
-    Modal
-} from 'react-bootstrap';
+    Spinner,
+    Modal,
+    ModalHeader,
+    ModalBody,
+    ModalFooter,
+    FormInput,
+} from './UI';
 
 interface Category {
     id: number;
@@ -166,7 +168,6 @@ function CategoryPage() {
     }, [categories, searchTerm]);
 
     const sortedCategories = useMemo(() => {
-        if (!sortConfig) return filteredCategories;
         const data = [...filteredCategories];
         data.sort((a, b) => {
             const aValue = a[sortConfig.key];
@@ -178,12 +179,10 @@ function CategoryPage() {
     }, [filteredCategories, sortConfig]);
 
     const handleSort = (key: keyof Category) => {
-        setSortConfig((prev) => {
-            if (prev?.key === key) {
-                return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
-            }
-            return { key, direction: 'asc' };
-        });
+        setSortConfig((prev) => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+        }));
     };
 
     const getSortIndicator = (key: keyof Category) => {
@@ -193,168 +192,160 @@ function CategoryPage() {
 
     if (authLoading || isLoading) {
         return (
-            <Container className="py-5 text-center">
-                <Spinner animation="border" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                </Spinner>
-            </Container>
+            <div className="flex items-center justify-center py-12">
+                <Spinner size="lg" />
+            </div>
         );
     }
 
     return (
-        <div className="w-100 h-100">
-            <Container fluid className="py-4 px-4">
+        <div className="w-full h-full">
+            <div className="px-4 py-6 max-w-7xl mx-auto">
                 {/* Header */}
-                <Row className="mb-4">
-                    <Col>
-                        <h2 className="mb-0">
-                            <i className="bi bi-tag me-2"></i>
-                            Categories
-                        </h2>
-                        <p className="text-muted">Manage item categories</p>
-                    </Col>
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Categories</h2>
+                        <p className="text-sm text-gray-500 mt-1">Manage item categories</p>
+                    </div>
                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
-                        <Col xs="auto">
-                            <Button variant="primary" onClick={() => handleOpenModal()}>
-                                <i className="bi bi-plus-circle me-2"></i>
-                                Add Category
-                            </Button>
-                        </Col>
+                        <Button variant="primary" onClick={() => handleOpenModal()}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Category
+                        </Button>
                     )}
-                </Row>
+                </div>
 
                 {/* Search */}
-                <Card className="mb-4 shadow-sm">
-                    <Card.Body>
-                        <Form.Group>
-                            <Form.Label>Search Categories</Form.Label>
-                            <Form.Control
-                                type="text"
-                                placeholder="Search by name..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </Form.Group>
-                    </Card.Body>
+                <Card className="mb-6 shadow-sm">
+                    <CardBody>
+                        <FormInput
+                            label="Search Categories"
+                            placeholder="Search by name..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </CardBody>
                 </Card>
 
                 {/* Alerts */}
                 {error && (
-                    <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                    <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-4">
                         {error}
                     </Alert>
                 )}
                 {success && (
-                    <Alert variant="success" dismissible onClose={() => setSuccess(null)}>
+                    <Alert variant="success" dismissible onClose={() => setSuccess(null)} className="mb-4">
                         {success}
                     </Alert>
                 )}
 
                 {/* Categories Table */}
                 <Card className="shadow-sm">
-                    <Card.Header className="bg-white border-bottom">
-                        <h5 className="mb-0">
-                            Categories ({filteredCategories.length})
+                    <CardHeader className="bg-gray-50">
+                        <h5 className="text-sm font-semibold text-gray-900">
+                            Categories ({sortedCategories.length})
                         </h5>
-                    </Card.Header>
-                    <Card.Body className="p-0">
-                        {filteredCategories.length === 0 ? (
-                            <div className="text-center text-muted py-5">
-                                <i className="bi bi-inbox fs-1 d-block mb-3"></i>
-                                <p className="mb-0">No categories found</p>
+                    </CardHeader>
+                    <CardBody className="p-0">
+                        {sortedCategories.length === 0 ? (
+                            <div className="text-center text-gray-500 py-12">
+                                <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                <p className="text-lg">No categories found</p>
                             </div>
                         ) : (
                             <div className="table-responsive">
-                                <Table hover className="mb-0 align-middle">
-                                    <thead className="table-light">
+                                <table className="table">
+                                    <thead>
                                         <tr>
                                             <th
-                                                style={{ width: '100px', cursor: 'pointer' }}
+                                                className="cursor-pointer hover:bg-gray-200 w-24 text-xs uppercase tracking-wide text-gray-500"
                                                 onClick={() => handleSort('id')}
                                             >
                                                 ID {getSortIndicator('id')}
                                             </th>
                                             <th
-                                                style={{ cursor: 'pointer' }}
+                                                className="cursor-pointer hover:bg-gray-200 text-xs uppercase tracking-wide text-gray-500"
                                                 onClick={() => handleSort('name')}
                                             >
                                                 Name {getSortIndicator('name')}
                                             </th>
-                                            <th style={{ width: '200px' }}>Actions</th>
+                                            <th className="w-48 text-right text-xs uppercase tracking-wide text-gray-500">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {sortedCategories.map((category) => (
                                             <tr key={category.id}>
                                                 <td>
-                                                    <code className="text-primary">{category.id}</code>
+                                                    <code className="text-primary font-mono text-sm">
+                                                        {category.id}
+                                                    </code>
                                                 </td>
-                                                <td className="fw-semibold">{category.name}</td>
-                                                <td>
+                                                <td className="font-semibold">{category.name}</td>
+                                                <td className="text-right">
                                                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
-                                                        <>
+                                                        <div className="flex gap-2 justify-end">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
-                                                                className="me-2"
+                                                                className="text-xs"
                                                                 onClick={() => handleOpenModal(category)}
                                                             >
-                                                                <i className="bi bi-pencil me-1"></i>
+                                                                <Pencil className="w-4 h-4 mr-1" />
                                                                 Edit
                                                             </Button>
                                                             {currentUser?.role === 'ADMIN' && (
                                                                 <Button
                                                                     variant="outline-danger"
                                                                     size="sm"
+                                                                    className="text-xs"
                                                                     onClick={() => handleDelete(category.id)}
                                                                 >
-                                                                    <i className="bi bi-trash me-1"></i>
+                                                                    <Trash2 className="w-4 h-4 mr-1" />
                                                                     Delete
                                                                 </Button>
                                                             )}
-                                                        </>
+                                                        </div>
                                                     )}
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                </Table>
+                                </table>
                             </div>
                         )}
-                    </Card.Body>
+                    </CardBody>
                 </Card>
-            </Container>
+            </div>
 
             {/* Add/Edit Modal */}
             <Modal show={showModal} onHide={handleCloseModal}>
-                <Modal.Header closeButton>
-                    <Modal.Title>
-                        {editingCategory ? 'Edit Category' : 'Add Category'}
-                    </Modal.Title>
-                </Modal.Header>
-                <Form onSubmit={handleSubmit}>
-                    <Modal.Body>
-                        <Form.Group>
-                            <Form.Label>Category Name</Form.Label>
-                            <Form.Control
+                <ModalHeader onClose={handleCloseModal}>
+                    {editingCategory ? 'Edit Category' : 'Add Category'}
+                </ModalHeader>
+                <form onSubmit={handleSubmit}>
+                    <ModalBody>
+                        <div>
+                            <label className="form-label">Category Name</label>
+                            <input
                                 type="text"
+                                className="form-control"
                                 placeholder="Enter category name"
                                 value={formName}
                                 onChange={(e) => setFormName(e.target.value)}
                                 required
                                 autoFocus
                             />
-                        </Form.Group>
-                    </Modal.Body>
-                    <Modal.Footer>
-                        <Button variant="secondary" onClick={handleCloseModal}>
+                        </div>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button variant="secondary" onClick={handleCloseModal} type="button">
                             Cancel
                         </Button>
                         <Button variant="primary" type="submit">
                             {editingCategory ? 'Save Changes' : 'Create Category'}
                         </Button>
-                    </Modal.Footer>
-                </Form>
+                    </ModalFooter>
+                </form>
             </Modal>
         </div>
     );
