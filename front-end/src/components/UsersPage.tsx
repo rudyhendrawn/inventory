@@ -39,7 +39,8 @@ function UsersPage() {
     const { user: currentUser, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [users, setUsers] = useState<User[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchInput, setSearchInput] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [activeOnly, setActiveOnly] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -62,7 +63,15 @@ function UsersPage() {
 
     useEffect(() => {
         fetchUsers();
-    }, [currentPage, searchTerm, activeOnly]);
+    }, [currentPage, debouncedSearch, activeOnly]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setDebouncedSearch(searchInput);
+            setCurrentPage(1);
+        }, 300);
+        return () => window.clearTimeout(timer);
+    }, [searchInput]);
 
     const fetchUsers = async () => {
         if (!token) return;
@@ -77,8 +86,8 @@ function UsersPage() {
                 active_only: activeOnly ? '1' : '0',
             });
 
-            if (searchTerm.trim()) {
-                params.append('search', searchTerm.trim());
+            if (debouncedSearch.trim()) {
+                params.append('search', debouncedSearch.trim());
             }
 
             const response = await fetch(`${API_BASE_URL}/users?${params}`, {
@@ -102,11 +111,6 @@ function UsersPage() {
         } finally {
             setIsLoading(false);
         }
-    };
-
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value);
-        setCurrentPage(1);
     };
 
     const handleActiveFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,13 +174,13 @@ function UsersPage() {
     };
 
     const filteredUsers = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
+        const term = debouncedSearch.trim().toLowerCase();
         if (!term) return users;
         return users.filter((user) => (
             user.name.toLowerCase().includes(term) ||
             user.email.toLowerCase().includes(term)
         ));
-    }, [users, searchTerm]);
+    }, [users, debouncedSearch]);
 
     const sortedUsers = useMemo(() => {
         if (!sortConfig) return filteredUsers;
@@ -198,7 +202,7 @@ function UsersPage() {
         return data;
     }, [filteredUsers, sortConfig]);
 
-    const displayTotal = searchTerm.trim() ? sortedUsers.length : totalUsers;
+    const displayTotal = debouncedSearch.trim() ? sortedUsers.length : totalUsers;
 
     if (authLoading || isLoading) {
         return (
@@ -235,8 +239,8 @@ function UsersPage() {
                             <FormInput
                                 label="Search"
                                 placeholder="Search by name or email..."
-                                value={searchTerm}
-                                onChange={handleSearch}
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
                             />
                             <div className="flex items-end">
                                 <div className="flex items-center">

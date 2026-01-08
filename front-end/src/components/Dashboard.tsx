@@ -68,7 +68,8 @@ function Dashboard() {
     const navigate = useNavigate();
     const [issues, setIssues] = useState<Issue[]>([]);
     const [statistics, setStatistics] = useState<Statistics | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchInput, setSearchInput] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [statsLoading, setStatsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -174,7 +175,7 @@ function Dashboard() {
                 page: currentPage.toString(),
                 page_size: pageSize.toString(),
             });
-            if (searchTerm.trim()) params.append('search', searchTerm.trim());
+            if (debouncedSearch.trim()) params.append('search', debouncedSearch.trim());
             if (filters.status !== 'all') params.append('status_filter', filters.status.toUpperCase());
 
             const response = await fetch(`${API_BASE_URL}/issues?${params}`, {
@@ -190,7 +191,7 @@ function Dashboard() {
         } finally {
             setIsLoading(false);
         }
-    }, [token, API_BASE_URL, currentPage, pageSize, searchTerm, filters.status]);
+    }, [token, API_BASE_URL, currentPage, pageSize, debouncedSearch, filters.status]);
 
     const fetchIssueDetails = async (issueId: number) => {
         if (!token) return;
@@ -241,6 +242,14 @@ function Dashboard() {
         fetchStatistics();
     }, [fetchIssues, fetchStatistics]);
 
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setDebouncedSearch(searchInput);
+            setCurrentPage(1);
+        }, 300);
+        return () => window.clearTimeout(timer);
+    }, [searchInput]);
+
     const getUserNameById = (userId?: number) => {
         if (!userId) return '-';
         return userNameMap[userId] || `User #${userId}`;
@@ -258,7 +267,7 @@ function Dashboard() {
 
     const filteredIssues = useMemo(() => {
         return issues.filter((issue) => {
-            if (searchTerm && !issue.code.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+            if (debouncedSearch && !issue.code.toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
             if (filters.requestedBy) {
                 const requestedName = issue.requested_by ? (userNameMap[issue.requested_by] || '') : '';
                 if (!requestedName.toLowerCase().includes(filters.requestedBy.toLowerCase())) return false;
@@ -279,7 +288,7 @@ function Dashboard() {
             }
             return true;
         });
-    }, [issues, filters, userNameMap, searchTerm]);
+    }, [issues, filters, userNameMap, debouncedSearch]);
 
     const sortedIssues = useMemo(() => {
         const data = [...filteredIssues];
@@ -471,10 +480,9 @@ function Dashboard() {
                             <FormInput
                                 label="Search Code"
                                 placeholder="ISS-001"
-                                value={searchTerm}
+                                value={searchInput}
                                 onChange={(e) => {
-                                    setSearchTerm(e.target.value);
-                                    setCurrentPage(1);
+                                    setSearchInput(e.target.value);
                                 }}
                             />
                             <FormSelect
