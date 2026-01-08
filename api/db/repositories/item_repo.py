@@ -22,11 +22,17 @@ class ItemRepository:
                 conditions.append("active = %s")
                 params.append(True)
 
-            search_term = DatabaseUtils.sanitize_search_term(search)
-            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["item_code", "name"])
-            if search_condition:
-                conditions.append(search_condition)
-                params.extend(search_params)
+            # Sanitize and validate search term
+            if search and search.strip():
+                search_term = DatabaseUtils.sanitize_search_term(search)
+                if search_term:
+                    search_condition, search_params = QueryBuilder.build_search_condition(
+                        search_term, 
+                        ["item_code", "name", "description"]
+                    )
+                    if search_condition:
+                        conditions.append(search_condition)
+                        params.extend(search_params)
 
             where_clause, params = QueryBuilder.build_where_clause(conditions, params)
 
@@ -197,7 +203,7 @@ class ItemRepository:
                 params.append(True)
 
             search_term = DatabaseUtils.sanitize_search_term(search)
-            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["sku", "name"])
+            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["item_code", "name"])
             if search_condition:
                 conditions.append(search_condition)
                 params.extend(search_params)

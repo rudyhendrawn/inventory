@@ -221,7 +221,7 @@ class UserRepository:
 
             if user_data.email is not None:
                 set_clauses.append("email = %s")
-                params.append(user_data.email)
+                params.append(user_data.email.lower())
 
             if user_data.role is not None:
                 set_clauses.append("role = %s")

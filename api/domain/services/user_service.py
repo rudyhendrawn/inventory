@@ -205,6 +205,12 @@ class UserService:
         Update an existing user.
         """
         try:
+            if not user_data.model_dump(exclude_unset=True):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="At least one field is required to update a user."
+                )
+
             existing_user = UserRepository.get_by_id(user_id)
             if not existing_user:
                 raise HTTPException(
@@ -220,7 +226,11 @@ class UserService:
                         detail=f"User with email {user_data.email} already exists."
                     )
                 
-            updated_user = UserRepository.update(user_id, user_data)
+            password_hash = None
+            if user_data.password:
+                password_hash = hash_password(user_data.password)
+
+            updated_user = UserRepository.update(user_id, user_data, password_hash=password_hash)
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
