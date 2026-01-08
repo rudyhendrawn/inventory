@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Inbox, Plus, ArrowLeftRight, Pencil, Trash2 } from 'lucide-react';
 import {
-    Container,
-    Row,
-    Col,
-    Card,
-    Table,
     Button,
-    Form,
-    Spinner,
+    Card,
+    CardHeader,
+    CardBody,
     Alert,
+    Spinner,
     Badge,
     Pagination,
-} from 'react-bootstrap';
+    PaginationInfo,
+    FormInput,
+} from './UI';
 
 interface Transaction {
     id: number;
@@ -190,7 +190,7 @@ function TransactionsPage() {
         }
     };
 
-    const getTxBadge = (txType: string) => {
+    const getTxBadge = (txType: string): 'success' | 'danger' | 'warning' | 'secondary' => {
         switch (txType) {
             case 'IN':
                 return 'success';
@@ -205,119 +205,108 @@ function TransactionsPage() {
 
     if (authLoading || isLoading) {
         return (
-            <Container className="py-5 text-center">
-                <Spinner animation="border" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                </Spinner>
-            </Container>
+            <div className="flex items-center justify-center py-12">
+                <Spinner size="lg" />
+            </div>
         );
     }
 
     return (
-        <div className="w-100 h-100">
-            <Container fluid className="py-4 px-4">
-                <Row className="mb-4">
-                    <Col>
-                        <h2 className="mb-0">
-                            <i className="bi bi-arrow-left-right me-2"></i>
+        <div className="w-full h-full">
+            <div className="px-4 py-6 w-full">
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                            <ArrowLeftRight className="w-6 h-6" />
                             Stock Transactions
                         </h2>
-                        <p className="text-muted">Track stock movements and adjustments</p>
-                    </Col>
+                        <p className="text-gray-600 mt-1">Track stock movements and adjustments</p>
+                    </div>
                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
-                        <Col xs="auto">
-                            <Button variant="primary" onClick={() => navigate('/transactions/new')}>
-                                <i className="bi bi-plus-circle me-2"></i>
-                                New Transaction
-                            </Button>
-                        </Col>
+                        <Button variant="primary" onClick={() => navigate('/transactions/new')}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            New Transaction
+                        </Button>
                     )}
-                </Row>
+                </div>
 
                 {error && (
-                    <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                    <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-4">
                         {error}
                     </Alert>
                 )}
 
-                <Card className="shadow-sm mb-4">
-                    <Card.Body>
-                        <Row className="g-3">
-                            <Col md={4}>
-                                <Form.Group>
-                                    <Form.Label>Search</Form.Label>
-                                    <Form.Control
-                                        placeholder="Item, location, ref, note..."
-                                        value={searchInput}
-                                        onChange={(e) => setSearchInput(e.target.value)}
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={3}>
-                                <Form.Group>
-                                    <Form.Label>Type</Form.Label>
-                                    <Form.Select
-                                        value={filters.tx_type}
-                                        onChange={(e) => setFilters((prev) => ({ ...prev, tx_type: e.target.value }))}
-                                    >
-                                        <option value="all">All</option>
-                                        <option value="IN">IN</option>
-                                        <option value="OUT">OUT</option>
-                                        <option value="ADJ">ADJ</option>
-                                        <option value="XFER">XFER</option>
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                            <Col md={3}>
-                                <Form.Group>
-                                    <Form.Label>Item</Form.Label>
-                                    <Form.Select
-                                        value={filters.item_id}
-                                        onChange={(e) => setFilters((prev) => ({ ...prev, item_id: e.target.value }))}
-                                    >
-                                        <option value="">All Items</option>
-                                        {items.map((item) => (
-                                            <option key={item.id} value={item.id}>
-                                                {item.item_code} - {item.name}
-                                            </option>
-                                        ))}
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                            <Col md={2}>
-                                <Form.Group>
-                                    <Form.Label>Location</Form.Label>
-                                    <Form.Select
-                                        value={filters.location_id}
-                                        onChange={(e) => setFilters((prev) => ({ ...prev, location_id: e.target.value }))}
-                                    >
-                                        <option value="">All Locations</option>
-                                        {locations.map((loc) => (
-                                            <option key={loc.id} value={loc.id}>
-                                                {loc.name}
-                                            </option>
-                                        ))}
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                        </Row>
-                    </Card.Body>
+                <Card className="mb-6">
+                    <CardBody>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <FormInput
+                                label="Search"
+                                placeholder="Item, location, ref, note..."
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                            />
+                            <div>
+                                <label className="form-label">Type</label>
+                                <select
+                                    className="form-select"
+                                    value={filters.tx_type}
+                                    onChange={(e) => setFilters((prev) => ({ ...prev, tx_type: e.target.value }))}
+                                >
+                                    <option value="all">All</option>
+                                    <option value="IN">IN</option>
+                                    <option value="OUT">OUT</option>
+                                    <option value="ADJ">ADJ</option>
+                                    <option value="XFER">XFER</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="form-label">Item</label>
+                                <select
+                                    className="form-select"
+                                    value={filters.item_id}
+                                    onChange={(e) => setFilters((prev) => ({ ...prev, item_id: e.target.value }))}
+                                >
+                                    <option value="">All Items</option>
+                                    {items.map((item) => (
+                                        <option key={item.id} value={item.id}>
+                                            {item.item_code} - {item.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="form-label">Location</label>
+                                <select
+                                    className="form-select"
+                                    value={filters.location_id}
+                                    onChange={(e) => setFilters((prev) => ({ ...prev, location_id: e.target.value }))}
+                                >
+                                    <option value="">All Locations</option>
+                                    {locations.map((loc) => (
+                                        <option key={loc.id} value={loc.id}>
+                                            {loc.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </CardBody>
                 </Card>
 
-                <Card className="shadow-sm">
-                    <Card.Header className="bg-white border-bottom">
-                        <h5 className="mb-0">Transactions ({totalItems})</h5>
-                    </Card.Header>
-                    <Card.Body className="p-0">
+                <Card>
+                    <CardHeader>
+                        <h5 className="font-bold text-lg">Transactions ({totalItems})</h5>
+                    </CardHeader>
+                    <CardBody className="p-0">
                         {transactions.length === 0 ? (
-                            <div className="text-center text-muted py-5">
-                                <i className="bi bi-inbox fs-1 d-block mb-3"></i>
-                                <p className="mb-0">No transactions found</p>
+                            <div className="text-center text-gray-500 py-12">
+                                <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                <p className="text-lg">No transactions found</p>
                             </div>
                         ) : (
                             <div className="table-responsive">
-                                <Table hover className="mb-0 align-middle">
-                                    <thead className="table-light">
+                                <table className="table table-compact">
+                                    <thead>
                                         <tr>
                                             <th>Date</th>
                                             <th>Item Code</th>
@@ -328,35 +317,44 @@ function TransactionsPage() {
                                             <th>On Hand</th>
                                             <th>Ref</th>
                                             <th>Note</th>
-                                            <th style={{ width: '160px' }}>Actions</th>
+                                            <th className="w-48">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {transactions.map((tx) => (
                                             <tr key={tx.id}>
                                                 <td>{new Date(tx.tx_at).toLocaleString()}</td>
-                                                <td><code>{tx.item_code || '-'}</code></td>
+                                                <td>
+                                                    <code className="text-blue-600 font-mono text-sm">
+                                                        {tx.item_code || '-'}
+                                                    </code>
+                                                </td>
                                                 <td>{tx.item_name || '-'}</td>
                                                 <td>{tx.location_name || '-'}</td>
                                                 <td>
-                                                    <Badge bg={getTxBadge(tx.tx_type)}>
+                                                    <Badge variant={getTxBadge(tx.tx_type)}>
                                                         {tx.tx_type}
                                                     </Badge>
                                                 </td>
                                                 <td>{Number(tx.qty).toFixed(1)}</td>
-                                                <td>{tx.qty_on_hand !== null && tx.qty_on_hand !== undefined ? Number(tx.qty_on_hand).toFixed(1) : '-'}</td>
+                                                <td>
+                                                    {tx.qty_on_hand !== null && tx.qty_on_hand !== undefined
+                                                        ? Number(tx.qty_on_hand).toFixed(1)
+                                                        : '-'}
+                                                </td>
                                                 <td>{tx.ref || '-'}</td>
-                                                <td className="text-truncate" style={{ maxWidth: '160px' }}>{tx.note || '-'}</td>
+                                                <td className="text-sm text-gray-600">
+                                                    <span className="block max-w-xs truncate">{tx.note || '-'}</span>
+                                                </td>
                                                 <td>
                                                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
-                                                        <>
+                                                        <div className="flex gap-2">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
-                                                                className="me-2"
                                                                 onClick={() => navigate(`/transactions/${tx.id}/edit`)}
                                                             >
-                                                                <i className="bi bi-pencil me-1"></i>
+                                                                <Pencil className="w-4 h-4 mr-1" />
                                                                 Edit
                                                             </Button>
                                                             <Button
@@ -364,62 +362,31 @@ function TransactionsPage() {
                                                                 size="sm"
                                                                 onClick={() => handleDelete(tx.id)}
                                                             >
-                                                                <i className="bi bi-trash me-1"></i>
+                                                                <Trash2 className="w-4 h-4 mr-1" />
                                                                 Delete
                                                             </Button>
-                                                        </>
+                                                        </div>
                                                     )}
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                </Table>
+                                </table>
                             </div>
                         )}
-                    </Card.Body>
+                    </CardBody>
                     {totalPages > 1 && (
-                        <Card.Footer className="bg-white border-top">
-                            <div className="d-flex justify-content-between align-items-center">
-                                <span className="text-muted">
-                                    Showing {((currentPage - 1) * pageSize) + 1} to{' '}
-                                    {Math.min(currentPage * pageSize, totalItems)} of {totalItems}
-                                </span>
-                                <Pagination className="mb-0">
-                                    <Pagination.Prev
-                                        disabled={currentPage === 1}
-                                        onClick={() => setCurrentPage(currentPage - 1)}
-                                    />
-                                    {[...Array(Math.min(5, totalPages))].map((_, index) => {
-                                        let pageNum;
-                                        if (totalPages <= 5) {
-                                            pageNum = index + 1;
-                                        } else if (currentPage <= 3) {
-                                            pageNum = index + 1;
-                                        } else if (currentPage >= totalPages - 2) {
-                                            pageNum = totalPages - 4 + index;
-                                        } else {
-                                            pageNum = currentPage - 2 + index;
-                                        }
-                                        return (
-                                            <Pagination.Item
-                                                key={pageNum}
-                                                active={currentPage === pageNum}
-                                                onClick={() => setCurrentPage(pageNum)}
-                                            >
-                                                {pageNum}
-                                            </Pagination.Item>
-                                        );
-                                    })}
-                                    <Pagination.Next
-                                        disabled={currentPage === totalPages}
-                                        onClick={() => setCurrentPage(currentPage + 1)}
-                                    />
-                                </Pagination>
-                            </div>
-                        </Card.Footer>
+                        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                            <PaginationInfo currentPage={currentPage} pageSize={pageSize} totalItems={totalItems} />
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={setCurrentPage}
+                            />
+                        </div>
                     )}
                 </Card>
-            </Container>
+            </div>
         </div>
     );
 }

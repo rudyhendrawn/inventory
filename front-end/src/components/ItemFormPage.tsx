@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from 'react-bootstrap';
+import { ArrowLeft } from 'lucide-react';
 import Select from 'react-select';
+import {
+    Alert,
+    Button,
+    Card,
+    CardBody,
+    CardFooter,
+    CardHeader,
+    FormCheckbox,
+    FormInput,
+    FormSelect,
+    FormTextarea,
+    Spinner,
+} from './UI';
 
 interface Category {
     id: number;
@@ -51,6 +64,7 @@ function ItemFormPage() {
     const navigate = useNavigate();
     const { user, isLoading: authLoading } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
     const [units, setUnits] = useState<Unit[]>([]);
@@ -195,7 +209,7 @@ function ItemFormPage() {
         e.preventDefault();
         if (!token) return;
 
-        setIsLoading(true);
+        setIsSaving(true);
         setError(null);
 
         const payload = {
@@ -255,191 +269,171 @@ function ItemFormPage() {
         } catch (err) {
             setError((err as Error).message || 'Failed to save item');
         } finally {
-            setIsLoading(false);
+            setIsSaving(false);
         }
     };
 
+    const categoryOptions = [
+        { value: '', label: 'Select category' },
+        ...categories.map((cat) => ({ value: String(cat.id), label: cat.name })),
+    ];
+
+    const unitOptions = [
+        { value: '', label: 'Select unit' },
+        ...units.map((unit) => ({ value: String(unit.id), label: `${unit.name} (${unit.symbol})` })),
+    ];
+
+    const ownerOptions = [
+        { value: '', label: 'Unassigned' },
+        ...users.map((u) => ({ value: String(u.id), label: `${u.name} (${u.email})` })),
+    ];
+
     if (authLoading || isLoading) {
         return (
-            <Container className="py-5 text-center">
-                <Spinner animation="border" role="status" />
-            </Container>
+            <div className="flex items-center justify-center py-12">
+                <Spinner size="lg" />
+            </div>
         );
     }
 
     return (
-        <div className="w-100 h-100">
-            <Container fluid className="py-4 px-4">
-                <Card className="shadow-sm">
-                    <Card.Header className="bg-white border-bottom">
-                        <h5 className="mb-0">{isEdit ? 'Edit Item' : 'Create New Item'}</h5>
-                    </Card.Header>
-                    <Card.Body>
-                        {error && (
-                            <Alert variant="danger" dismissible onClose={() => setError(null)}>
-                                {error}
-                            </Alert>
-                        )}
-                        <Form onSubmit={handleSubmit}>
-                            <Row className="g-3">
-                                <Col md={8}>
-                                    <Form.Group>
-                                        <Form.Label>Issue</Form.Label>
-                                        <Select
-                                            options={issueLabels}
-                                            value={selectedIssueOption}
-                                            onChange={(option) =>
-                                                setIssueId(option ? option.value : '')
-                                            }
-                                            isClearable
-                                            placeholder="Search issue code or status"
-                                            classNamePrefix="react-select"
-                                        />
-                                        <Form.Text className="text-muted">
-                                            Select an issue from the dropdown.
-                                        </Form.Text>
-                                    </Form.Group>
-                                </Col>
-                                <Col md={6}>
-                                    <Form.Group>
-                                        <Form.Label>Item Code</Form.Label>
-                                        <Form.Control
-                                            value={form.item_code}
-                                            onChange={(e) => handleChange('item_code', e.target.value)}
-                                            required
-                                        />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={6}>
-                                    <Form.Group>
-                                        <Form.Label>Name</Form.Label>
-                                        <Form.Control
-                                            value={form.name}
-                                            onChange={(e) => handleChange('name', e.target.value)}
-                                            required
-                                        />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={6}>
-                                    <Form.Group>
-                                        <Form.Label>Category</Form.Label>
-                                        <Form.Select
-                                            value={form.category_id}
-                                            onChange={(e) => handleChange('category_id', e.target.value)}
-                                            required
-                                        >
-                                            <option value="">Select category</option>
-                                            {categories.map((cat) => (
-                                                <option key={cat.id} value={cat.id}>
-                                                    {cat.name}
-                                                </option>
-                                            ))}
-                                        </Form.Select>
-                                    </Form.Group>
-                                </Col>
-                                <Col md={6}>
-                                    <Form.Group>
-                                        <Form.Label>Unit</Form.Label>
-                                        <Form.Select
-                                            value={form.unit_id}
-                                            onChange={(e) => handleChange('unit_id', e.target.value)}
-                                            required
-                                        >
-                                            <option value="">Select unit</option>
-                                            {units.map((unit) => (
-                                                <option key={unit.id} value={unit.id}>
-                                                    {unit.name} ({unit.symbol})
-                                                </option>
-                                            ))}
-                                        </Form.Select>
-                                    </Form.Group>
-                                </Col>
-                                <Col md={6}>
-                                    <Form.Group>
-                                        <Form.Label>Owner</Form.Label>
-                                        <Form.Select
-                                            value={form.owner_user_id}
-                                            onChange={(e) => handleChange('owner_user_id', e.target.value)}
-                                        >
-                                            <option value="">Unassigned</option>
-                                            {users.map((u) => (
-                                                <option key={u.id} value={u.id}>
-                                                    {u.name} ({u.email})
-                                                </option>
-                                            ))}
-                                        </Form.Select>
-                                    </Form.Group>
-                                </Col>
-                                <Col md={6}>
-                                    <Form.Group>
-                                        <Form.Label>QR Code</Form.Label>
-                                        <Form.Control
-                                            value={form.qrcode}
-                                            onChange={(e) => handleChange('qrcode', e.target.value)}
-                                        />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={12}>
-                                    <Form.Group>
-                                        <Form.Label>Description</Form.Label>
-                                        <Form.Control
-                                            as="textarea"
-                                            rows={4}
-                                            value={form.description}
-                                            onChange={(e) => handleChange('description', e.target.value)}
-                                        />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={4}>
-                                    <Form.Group>
-                                        <Form.Label>Min Stock</Form.Label>
-                                        <Form.Control
-                                            type="number"
-                                            step="1"
-                                            min="0"
-                                            value={form.min_stock}
-                                            onChange={(e) => handleChange('min_stock', e.target.value)}
-                                        />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={8}>
-                                    <Form.Group>
-                                        <Form.Label>Image URL</Form.Label>
-                                        <Form.Control
-                                            value={form.image_url}
-                                            onChange={(e) => handleChange('image_url', e.target.value)}
-                                        />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={12}>
-                                    <Form.Check
-                                        type="checkbox"
-                                        id="item-active"
-                                        label="Active"
-                                        checked={form.active}
-                                        onChange={(e) => handleChange('active', e.target.checked)}
+        <div className="w-full h-full">
+            <div className="px-4 py-6 max-w-4xl mx-auto">
+                <div className="mb-6 flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/items')}
+                        className="text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                        <ArrowLeft className="w-6 h-6" />
+                    </button>
+                    <div>
+                        <h2 className="text-3xl font-bold text-gray-900">
+                            {isEdit ? 'Edit Item' : 'Create New Item'}
+                        </h2>
+                        <p className="text-gray-600 mt-1">Fill in the item details below</p>
+                    </div>
+                </div>
+
+                {error && (
+                    <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-6">
+                        {error}
+                    </Alert>
+                )}
+
+                <Card>
+                    <CardHeader>
+                        <h5 className="font-bold">Item Information</h5>
+                    </CardHeader>
+                    <CardBody>
+                        <form onSubmit={handleSubmit}>
+                            <div className="grid grid-cols-1 gap-4 mb-6">
+                                <div>
+                                    <label className="form-label">Issue</label>
+                                    <Select
+                                        options={issueLabels}
+                                        value={selectedIssueOption}
+                                        onChange={(option) => setIssueId(option ? option.value : '')}
+                                        isClearable
+                                        placeholder="Search issue code or status"
+                                        classNamePrefix="react-select"
                                     />
-                                </Col>
-                            </Row>
-                            <div className="d-flex justify-content-end gap-2 mt-4">
-                                <Button variant="outline-secondary" onClick={() => navigate('/items')}>
+                                    <p className="text-sm text-gray-500 mt-1">
+                                        Select an issue from the dropdown.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <FormInput
+                                    label="Item Code"
+                                    value={form.item_code}
+                                    onChange={(e) => handleChange('item_code', e.target.value)}
+                                    required
+                                />
+                                <FormInput
+                                    label="Name"
+                                    value={form.name}
+                                    onChange={(e) => handleChange('name', e.target.value)}
+                                    required
+                                />
+                                <FormSelect
+                                    label="Category"
+                                    options={categoryOptions}
+                                    value={form.category_id}
+                                    onChange={(e) => handleChange('category_id', e.target.value)}
+                                    required
+                                />
+                                <FormSelect
+                                    label="Unit"
+                                    options={unitOptions}
+                                    value={form.unit_id}
+                                    onChange={(e) => handleChange('unit_id', e.target.value)}
+                                    required
+                                />
+                                <FormSelect
+                                    label="Owner"
+                                    options={ownerOptions}
+                                    value={form.owner_user_id}
+                                    onChange={(e) => handleChange('owner_user_id', e.target.value)}
+                                />
+                                <FormInput
+                                    label="QR Code"
+                                    value={form.qrcode}
+                                    onChange={(e) => handleChange('qrcode', e.target.value)}
+                                />
+                            </div>
+
+                            <FormTextarea
+                                label="Description"
+                                rows={4}
+                                value={form.description}
+                                onChange={(e) => handleChange('description', e.target.value)}
+                            />
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <FormInput
+                                    label="Min Stock"
+                                    type="number"
+                                    step="1"
+                                    min="0"
+                                    value={form.min_stock}
+                                    onChange={(e) => handleChange('min_stock', e.target.value)}
+                                />
+                                <FormInput
+                                    label="Image URL"
+                                    value={form.image_url}
+                                    onChange={(e) => handleChange('image_url', e.target.value)}
+                                />
+                            </div>
+
+                            <div className="mt-4">
+                                <FormCheckbox
+                                    id="item-active"
+                                    label="Active"
+                                    checked={form.active}
+                                    onChange={(e) => handleChange('active', e.target.checked)}
+                                />
+                            </div>
+
+                            <CardFooter className="bg-gray-50 flex justify-end gap-2 mt-6">
+                                <Button variant="secondary" onClick={() => navigate('/items')}>
                                     Cancel
                                 </Button>
-                                <Button variant="primary" type="submit" disabled={isLoading}>
-                                    {isLoading ? (
+                                <Button variant="primary" type="submit" disabled={isSaving}>
+                                    {isSaving ? (
                                         <>
-                                            <Spinner animation="border" size="sm" className="me-2" />
+                                            <Spinner size="sm" className="mr-2" />
                                             {isEdit ? 'Saving...' : 'Creating...'}
                                         </>
                                     ) : (
                                         <>{isEdit ? 'Save Changes' : 'Create Item'}</>
                                     )}
                                 </Button>
-                            </div>
-                        </Form>
-                    </Card.Body>
+                            </CardFooter>
+                        </form>
+                    </CardBody>
                 </Card>
-            </Container>
+            </div>
         </div>
     );
 }

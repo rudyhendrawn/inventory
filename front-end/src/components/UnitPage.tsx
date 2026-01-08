@@ -1,18 +1,21 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Pencil, Trash2, Inbox } from 'lucide-react';
 import {
-    Container,
-    Row,
-    Col,
-    Card,
-    Table,
     Button,
-    Form,
-    Spinner,
+    Card,
+    CardHeader,
+    CardBody,
     Alert,
-    Modal
-} from 'react-bootstrap';
+    Spinner,
+    Modal,
+    ModalHeader,
+    ModalBody,
+    ModalFooter,
+    FormInput,
+    Form,
+} from './UI';
 
 interface Unit {
     id: number;
@@ -201,7 +204,6 @@ function UnitPage() {
     }, [units, searchTerm]);
 
     const sortedUnits = useMemo(() => {
-        if (!sortConfig) return filteredUnits;
         const data = [...filteredUnits];
         data.sort((a, b) => {
             const aValue = a[sortConfig.key];
@@ -218,12 +220,10 @@ function UnitPage() {
     }, [filteredUnits, sortConfig]);
 
     const handleSort = (key: keyof Unit) => {
-        setSortConfig((prev) => {
-            if (prev?.key === key) {
-                return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
-            }
-            return { key, direction: 'asc' };
-        });
+        setSortConfig((prev) => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+        }));
     };
 
     const getSortIndicator = (key: keyof Unit) => {
@@ -233,129 +233,130 @@ function UnitPage() {
 
     if (authLoading || isLoading) {
         return (
-            <Container className="py-5 text-center">
-                <Spinner animation="border" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                </Spinner>
-            </Container>
+            <div className="flex items-center justify-center py-12">
+                <Spinner size="lg" />
+            </div>
         );
     }
 
     return (
-        <div className="w-100 h-100">
-            <Container fluid className="py-4 px-4">
+        <div className="w-full h-full">
+            <div className="px-4 py-6 max-w-7xl mx-auto">
                 {/* Header */}
-                <Row className="mb-4">
-                    <Col>
-                        <h2 className="mb-0">
-                            <i className="bi bi-rulers me-2"></i>
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                            <span>📏</span>
                             Units of Measurement
                         </h2>
-                        <p className="text-muted">Manage units for inventory items</p>
-                    </Col>
+                        <p className="text-gray-600 mt-1">Manage units for inventory items</p>
+                    </div>
                     {currentUser?.role === 'ADMIN' && (
-                        <Col xs="auto">
-                            <Button variant="primary" onClick={() => handleOpenModal()}>
-                                <i className="bi bi-plus-circle me-2"></i>
-                                Add Unit
-                            </Button>
-                        </Col>
+                        <Button variant="primary" onClick={() => handleOpenModal()}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            New Unit
+                        </Button>
                     )}
-                </Row>
+                </div>
 
                 {/* Search */}
-                <Card className="mb-4 shadow-sm">
-                    <Card.Body>
-                        <Form.Group>
-                            <Form.Label>Search Units</Form.Label>
-                            <Form.Control
-                                type="text"
-                                placeholder="Search by name or symbol..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </Form.Group>
-                    </Card.Body>
+                <Card className="mb-6">
+                    <CardBody>
+                        <div>
+                            <label className="form-label">Search Units</label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <input
+                                    type="text"
+                                    className="form-control pl-10"
+                                    placeholder="Search by name or symbol..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </CardBody>
                 </Card>
 
                 {/* Alerts */}
                 {error && (
-                    <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                    <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-4">
                         {error}
                     </Alert>
                 )}
                 {success && (
-                    <Alert variant="success" dismissible onClose={() => setSuccess(null)}>
+                    <Alert variant="success" dismissible onClose={() => setSuccess(null)} className="mb-4">
                         {success}
                     </Alert>
                 )}
 
                 {/* Units Table */}
-                <Card className="shadow-sm">
-                    <Card.Header className="bg-white border-bottom">
-                        <h5 className="mb-0">
-                            Units ({filteredUnits.length})
+                <Card>
+                    <CardHeader>
+                        <h5 className="font-bold text-lg">
+                            Units ({sortedUnits.length})
                         </h5>
-                    </Card.Header>
-                    <Card.Body className="p-0">
-                        {filteredUnits.length === 0 ? (
-                            <div className="text-center text-muted py-5">
-                                <i className="bi bi-inbox fs-1 d-block mb-3"></i>
-                                <p className="mb-0">No units found</p>
+                    </CardHeader>
+                    <CardBody className="p-0">
+                        {sortedUnits.length === 0 ? (
+                            <div className="text-center text-gray-500 py-12">
+                                <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                <p className="text-lg">No units found</p>
                             </div>
                         ) : (
                             <div className="table-responsive">
-                                <Table hover className="mb-0 align-middle">
-                                    <thead className="table-light">
+                                <table className="table">
+                                    <thead>
                                         <tr>
                                             <th
-                                                style={{ width: '100px', cursor: 'pointer' }}
+                                                className="cursor-pointer hover:bg-gray-200 w-24"
                                                 onClick={() => handleSort('id')}
                                             >
                                                 ID {getSortIndicator('id')}
                                             </th>
                                             <th
-                                                style={{ cursor: 'pointer' }}
+                                                className="cursor-pointer hover:bg-gray-200"
                                                 onClick={() => handleSort('name')}
                                             >
                                                 Name {getSortIndicator('name')}
                                             </th>
                                             <th
-                                                style={{ width: '150px', cursor: 'pointer' }}
+                                                className="cursor-pointer hover:bg-gray-200 w-40"
                                                 onClick={() => handleSort('symbol')}
                                             >
                                                 Symbol {getSortIndicator('symbol')}
                                             </th>
                                             <th
-                                                style={{ width: '150px', cursor: 'pointer' }}
+                                                className="cursor-pointer hover:bg-gray-200 w-40"
                                                 onClick={() => handleSort('multiplier')}
                                             >
                                                 Multiplier {getSortIndicator('multiplier')}
                                             </th>
-                                            <th style={{ width: '200px' }}>Actions</th>
+                                            <th className="w-56">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {sortedUnits.map((unit) => (
                                             <tr key={unit.id}>
                                                 <td>
-                                                    <code className="text-primary">{unit.id}</code>
+                                                    <code className="text-blue-600 font-mono text-sm">
+                                                        {unit.id}
+                                                    </code>
                                                 </td>
-                                                <td className="fw-semibold">{unit.name}</td>
+                                                <td className="font-semibold">{unit.name}</td>
                                                 <td>
-                                                    <code className="text-secondary">{unit.symbol}</code>
+                                                    <code className="text-gray-600 font-mono">{unit.symbol}</code>
                                                 </td>
                                                 <td>{unit.multiplier}</td>
                                                 <td>
                                                     {currentUser?.role === 'ADMIN' && (
-                                                        <>
+                                                        <div className="flex gap-2">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
-                                                                className="me-2"
                                                                 onClick={() => handleOpenModal(unit)}
                                                             >
-                                                                <i className="bi bi-pencil me-1"></i>
+                                                                <Pencil className="w-4 h-4 mr-1" />
                                                                 Edit
                                                             </Button>
                                                             <Button
@@ -363,83 +364,65 @@ function UnitPage() {
                                                                 size="sm"
                                                                 onClick={() => handleDelete(unit.id)}
                                                             >
-                                                                <i className="bi bi-trash me-1"></i>
+                                                                <Trash2 className="w-4 h-4 mr-1" />
                                                                 Delete
                                                             </Button>
-                                                        </>
+                                                        </div>
                                                     )}
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                </Table>
+                                </table>
                             </div>
                         )}
-                    </Card.Body>
+                    </CardBody>
                 </Card>
-            </Container>
+            </div>
 
             {/* Add/Edit Modal */}
             <Modal show={showModal} onHide={handleCloseModal}>
-                <Modal.Header closeButton>
-                    <Modal.Title>
-                        {editingUnit ? 'Edit Unit' : 'Add Unit'}
-                    </Modal.Title>
-                </Modal.Header>
+                <ModalHeader onClose={handleCloseModal}>
+                    {editingUnit ? 'Edit Unit' : 'Add Unit'}
+                </ModalHeader>
                 <Form onSubmit={handleSubmit}>
-                    <Modal.Body>
-                        <Row className="g-3">
-                            <Col md={12}>
-                                <Form.Group>
-                                    <Form.Label>Unit Name</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        placeholder="e.g., Kilogram, Meter, Piece"
-                                        value={form.name}
-                                        onChange={(e) => handleChange('name', e.target.value)}
-                                        required
-                                        autoFocus
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group>
-                                    <Form.Label>Symbol</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        placeholder="e.g., kg, m, pcs"
-                                        value={form.symbol}
-                                        onChange={(e) => handleChange('symbol', e.target.value)}
-                                        required
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group>
-                                    <Form.Label>Multiplier</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        step="0.000001"
-                                        min="0"
-                                        value={form.multiplier}
-                                        onChange={(e) => handleChange('multiplier', e.target.value)}
-                                        required
-                                    />
-                                    <Form.Text className="text-muted">
-                                        Conversion factor (e.g., 1000 for kg to g)
-                                    </Form.Text>
-                                </Form.Group>
-                            </Col>
-                        </Row>
-                    </Modal.Body>
-                    <Modal.Footer>
-                        <Button variant="secondary" onClick={handleCloseModal}>
+                    <ModalBody>
+                        <div className="grid grid-cols-1 gap-4">
+                            <FormInput
+                                label="Unit Name"
+                                placeholder="e.g., Kilogram, Meter, Piece"
+                                value={form.name}
+                                onChange={(e) => handleChange('name', e.target.value)}
+                                required
+                                autoFocus
+                            />
+                            <FormInput
+                                label="Symbol"
+                                placeholder="e.g., kg, m, pcs"
+                                value={form.symbol}
+                                onChange={(e) => handleChange('symbol', e.target.value)}
+                                required
+                            />
+                            <FormInput
+                                label="Multiplier"
+                                type="number"
+                                step="0.000001"
+                                min="0"
+                                value={form.multiplier}
+                                onChange={(e) => handleChange('multiplier', e.target.value)}
+                                required
+                                helperText="Conversion factor (e.g., 1000 for kg to g)"
+                            />
+                        </div>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button variant="secondary" onClick={handleCloseModal} type="button">
                             Cancel
                         </Button>
                         <Button variant="primary" type="submit">
                             {editingUnit ? 'Save Changes' : 'Create Unit'}
                         </Button>
-                    </Modal.Footer>
+                    </ModalFooter>
                 </Form>
             </Modal>
         </div>
